@@ -1,6 +1,6 @@
 {
   "name": "flowya",
-  "version": "1.0.4",
+  "version": "1.0.10",
   "description": "A floating macOS productivity app with glassmorphism UI",
   "main": "dist-electron/electron/main.js",
   "author": "Flowya",
@@ -10,7 +10,10 @@
     "build": "tsc && vite build && tsc -p tsconfig.node.json",
     "preview": "vite preview",
     "package": "npm run build && electron-builder --mac",
-    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && npx electron .\""
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && npx electron .\"",
+    "release": "./scripts/release.sh patch",
+    "release:minor": "./scripts/release.sh minor",
+    "release:major": "./scripts/release.sh major"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
