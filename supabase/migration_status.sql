@@ -83,3 +83,75 @@ UPDATE spaces SET color = (
 ALTER TABLE todos ADD COLUMN IF NOT EXISTS description TEXT DEFAULT NULL;
 
 -- Done! Your todos now support descriptions
+
+-- ============================================
+-- Migration: Add all_spaces_color to settings
+-- ============================================
+
+-- Step 12: Add all_spaces_color column to settings
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS all_spaces_color TEXT DEFAULT '#64B5F6';
+
+-- Done! Settings now supports color for "All" view
+
+-- ============================================
+-- Migration: Add started_at to todos for in_progress ordering
+-- ============================================
+
+-- Step 13: Add started_at column to todos
+ALTER TABLE todos ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ DEFAULT NULL;
+
+-- Done! In progress tasks can now be sorted by when they were started
+
+-- ============================================
+-- Migration: Add multi-user support
+-- ============================================
+
+-- Step 14: Add user_id column to spaces
+ALTER TABLE spaces ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Step 15: Add user_id column to settings (and change primary key)
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Step 16: Create index for faster user queries
+CREATE INDEX IF NOT EXISTS idx_spaces_user_id ON spaces(user_id);
+CREATE INDEX IF NOT EXISTS idx_settings_user_id ON settings(user_id);
+
+-- Step 17: Drop old RLS policies
+DROP POLICY IF EXISTS "Allow all on spaces" ON spaces;
+DROP POLICY IF EXISTS "Allow all on todos" ON todos;
+DROP POLICY IF EXISTS "Allow all on settings" ON settings;
+
+-- Step 18: Create new RLS policies for multi-user
+-- Spaces: users can only see/manage their own spaces
+CREATE POLICY "Users manage own spaces" ON spaces 
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Todos: users can only see/manage todos in their spaces
+CREATE POLICY "Users manage own todos" ON todos 
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM spaces 
+      WHERE spaces.id = todos.space_id 
+      AND spaces.user_id = auth.uid()
+    )
+  );
+
+-- Settings: users can only see/manage their own settings
+CREATE POLICY "Users manage own settings" ON settings 
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Step 19: Assign existing data to your user
+-- Your user_id: 2f03d9aa-2019-4094-a827-f249854a9bfb
+UPDATE spaces SET user_id = '2f03d9aa-2019-4094-a827-f249854a9bfb' WHERE user_id IS NULL;
+UPDATE settings SET user_id = '2f03d9aa-2019-4094-a827-f249854a9bfb' WHERE user_id IS NULL;
+
+-- Done! Database now supports multiple users and your existing data is assigned to you
+
+-- ============================================
+-- Migration: Add nickname to settings
+-- ============================================
+
+-- Step 20: Add nickname column to settings
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS nickname TEXT DEFAULT NULL;
+
+-- Done! Users can now set a nickname

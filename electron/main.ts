@@ -5,6 +5,7 @@ import {
   globalShortcut,
   screen,
   nativeTheme,
+  nativeImage,
 } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -18,7 +19,6 @@ let liquidGlass: {
 
 try {
   const liquidGlassModule = require('electron-liquid-glass');
-  // Handle both ESM default export and CommonJS
   liquidGlass = liquidGlassModule.default || liquidGlassModule;
   console.log('Liquid glass module loaded:', Object.keys(liquidGlass || {}));
 } catch (e) {
@@ -104,13 +104,11 @@ function createWindow(): void {
     // macOS-specific window styling for Liquid Glass
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: -100, y: -100 }, // Hide traffic lights
-    transparent: true, // REQUIRED for liquid glass
-    // NOTE: Do NOT set vibrancy when using liquid glass
+    transparent: true,
     backgroundColor: '#00000000',
     
     // Floating window behavior
     alwaysOnTop: true,
-    skipTaskbar: false,
     
     // Frame and shadow
     frame: false,
@@ -129,7 +127,7 @@ function createWindow(): void {
   // Show window buttons (required for liquid glass)
   mainWindow.setWindowButtonVisibility(true);
 
-  // Set visible on all workspaces (Spaces) by default
+  // Set visible on all workspaces
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
   // Load the app
@@ -138,30 +136,25 @@ function createWindow(): void {
     // Uncomment to open DevTools in development
     // mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    // In packaged app, __dirname is dist-electron/electron/, so we need ../../dist
+    mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
   }
 
   // Apply native Liquid Glass effect after content loads
   mainWindow.webContents.once('did-finish-load', () => {
     if (mainWindow && liquidGlass && liquidGlass.addView) {
       try {
-        // Apply the native glass effect
         glassViewId = liquidGlass.addView(mainWindow.getNativeWindowHandle(), {
           cornerRadius: 18,
-          tintColor: '#00000060', // Darker tint for less transparency
+          tintColor: '#00000060',
         });
-        
-        // Use experimental variant 2 for nice glass look
         if (glassViewId !== null && liquidGlass.unstable_setVariant) {
           liquidGlass.unstable_setVariant(glassViewId, 2);
         }
-        
-        console.log('Liquid Glass effect applied, view ID:', glassViewId);
+        console.log('Liquid Glass applied');
       } catch (e) {
         console.error('Failed to apply liquid glass effect:', e);
       }
-    } else {
-      console.log('Liquid glass not available, using CSS fallback');
     }
   });
 
@@ -180,13 +173,13 @@ function createWindow(): void {
     }
   });
 
-  // Handle close behavior - hide instead of quit
-  mainWindow.on('close', (event) => {
-    if (!isQuitting) {
-      event.preventDefault();
-      mainWindow?.hide();
-    }
-  });
+  // Handle close behavior - for now, just quit normally to keep dock icon visible
+  // mainWindow.on('close', (event) => {
+  //   if (!isQuitting) {
+  //     event.preventDefault();
+  //     mainWindow?.hide();
+  //   }
+  // });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -201,7 +194,7 @@ function createWindow(): void {
 
   mainWindow.on('blur', () => {
     mainWindow?.webContents.send('window:focus', false);
-    mainWindow?.setOpacity(0.7);
+    mainWindow?.setOpacity(0.5);
   });
 }
 
@@ -210,7 +203,7 @@ function setupIPC(): void {
   // Toggle always on top
   ipcMain.handle('window:setAlwaysOnTop', (_event, value: boolean) => {
     if (mainWindow) {
-      mainWindow.setAlwaysOnTop(value, 'floating');
+      mainWindow.setAlwaysOnTop(value, 'pop-up-menu', 1);
       return true;
     }
     return false;
@@ -258,6 +251,37 @@ function setupIPC(): void {
   // Get theme
   ipcMain.handle('system:getTheme', () => {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+  });
+
+  // Refresh dock and floating (call after login)
+  ipcMain.handle('window:refreshDock', () => {
+    if (process.platform === 'darwin' && app.dock) {
+      const icnsPath = app.isPackaged 
+        ? path.join(process.resourcesPath, 'icon.icns')
+        : path.join(app.getAppPath(), 'build', 'icon.icns');
+      const pngPath = app.isPackaged 
+        ? path.join(process.resourcesPath, 'icon.png')
+        : path.join(app.getAppPath(), 'build', 'icon.png');
+      
+      const iconPath = fs.existsSync(icnsPath) ? icnsPath : pngPath;
+      
+      if (fs.existsSync(iconPath)) {
+        const icon = nativeImage.createFromPath(iconPath);
+        if (!icon.isEmpty()) {
+          app.dock.setIcon(icon);
+        }
+      }
+      app.dock.show();
+      
+      // Re-apply floating AFTER dock.show()
+      setTimeout(() => {
+        if (mainWindow) {
+          mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+          mainWindow.setAlwaysOnTop(true, 'floating', 1);
+        }
+      }, 100);
+    }
+    return true;
   });
 
   // Set minimized mode - removes glass effect temporarily
@@ -315,6 +339,36 @@ app.whenReady().then(() => {
   createWindow();
   setupIPC();
   registerGlobalShortcut();
+  
+  // Set custom dock icon with delay, then re-apply floating
+  setTimeout(() => {
+    if (process.platform === 'darwin' && app.dock) {
+      const icnsPath = app.isPackaged 
+        ? path.join(process.resourcesPath, 'icon.icns')
+        : path.join(app.getAppPath(), 'build', 'icon.icns');
+      const pngPath = app.isPackaged 
+        ? path.join(process.resourcesPath, 'icon.png')
+        : path.join(app.getAppPath(), 'build', 'icon.png');
+      
+      const iconPath = fs.existsSync(icnsPath) ? icnsPath : pngPath;
+      
+      if (fs.existsSync(iconPath)) {
+        const icon = nativeImage.createFromPath(iconPath);
+        if (!icon.isEmpty()) {
+          app.dock.setIcon(icon);
+        }
+      }
+      app.dock.show();
+      
+      // Re-apply floating AFTER dock.show()
+      setTimeout(() => {
+        if (mainWindow) {
+          mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+          mainWindow.setAlwaysOnTop(true, 'floating', 1);
+        }
+      }, 100);
+    }
+  }, 500);
 
   app.on('activate', () => {
     if (mainWindow === null) {

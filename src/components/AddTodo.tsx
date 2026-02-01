@@ -11,10 +11,17 @@ export function AddTodo({ onAdd, disabled, placeholder }: AddTodoProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus input on mount
+  // Keep input focused when not disabled
   useEffect(() => {
     if (inputRef.current && !disabled) {
-      inputRef.current.focus();
+      // Small delay to handle re-renders from parent
+      const timer = setTimeout(() => {
+        if (document.activeElement?.tagName !== 'INPUT' && 
+            document.activeElement?.tagName !== 'TEXTAREA') {
+          inputRef.current?.focus();
+        }
+      }, 50);
+      return () => clearTimeout(timer);
     }
   }, [disabled]);
 
@@ -28,7 +35,10 @@ export function AddTodo({ onAdd, disabled, placeholder }: AddTodoProps) {
       setText('');
     } finally {
       setIsSubmitting(false);
-      inputRef.current?.focus();
+      // Use setTimeout to ensure focus happens after any re-renders
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
     }
   };
 

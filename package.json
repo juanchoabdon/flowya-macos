@@ -1,9 +1,9 @@
 {
-  "name": "neostasks",
-  "version": "1.0.0",
-  "description": "A floating macOS todo app with glassmorphism UI",
+  "name": "flowya",
+  "version": "1.0.4",
+  "description": "A floating macOS productivity app with glassmorphism UI",
   "main": "dist-electron/electron/main.js",
-  "author": "NeosTasks",
+  "author": "Flowya",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
@@ -15,6 +15,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
     "electron-liquid-glass": "^1.1.1",
+    "electron-updater": "^6.7.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

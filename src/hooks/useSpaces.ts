@@ -12,12 +12,18 @@ interface UseSpacesReturn {
   refetch: () => Promise<void>;
 }
 
-export function useSpaces(): UseSpacesReturn {
+export function useSpaces(userId?: string): UseSpacesReturn {
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchSpaces = useCallback(async () => {
+    if (!userId) {
+      setSpaces([]);
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       const data = await api.getSpaces();
@@ -28,15 +34,17 @@ export function useSpaces(): UseSpacesReturn {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     fetchSpaces();
   }, [fetchSpaces]);
 
   const createSpace = useCallback(async (name: string): Promise<Space | null> => {
+    if (!userId) return null;
+    
     try {
-      const newSpace = await api.createSpace(name);
+      const newSpace = await api.createSpace(name, userId);
       // Optimistic update
       setSpaces(prev => [...prev, newSpace]);
       return newSpace;
@@ -44,7 +52,7 @@ export function useSpaces(): UseSpacesReturn {
       setError(err instanceof Error ? err : new Error('Failed to create space'));
       return null;
     }
-  }, []);
+  }, [userId]);
 
   const updateSpace = useCallback(async (id: string, updates: Partial<Pick<Space, 'name' | 'color'>>): Promise<Space | null> => {
     try {

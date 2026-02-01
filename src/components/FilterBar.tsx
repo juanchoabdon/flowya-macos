@@ -5,16 +5,16 @@ interface FilterBarProps {
   filter: FilterType;
   onFilterChange: (filter: FilterType) => void;
   onDropTask?: (taskId: string, newStatus: TaskStatus) => void;
-  activeCount: number;
-  totalCount: number;
+  doneCount: number;
+  pendingCount: number;
 }
 
 export function FilterBar({
   filter,
   onFilterChange,
   onDropTask,
-  activeCount,
-  totalCount,
+  doneCount,
+  pendingCount,
 }: FilterBarProps) {
   const [dragOverTab, setDragOverTab] = useState<FilterType | null>(null);
 
@@ -64,7 +64,7 @@ export function FilterBar({
           </button>
         ))}
       </div>
-      <span className="filter-count">{activeCount} of {totalCount}</span>
+      <span className="filter-count">{doneCount} / {doneCount + pendingCount}</span>
     </div>
   );
 }

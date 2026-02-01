@@ -10,15 +10,21 @@ interface UseSettingsReturn {
   refetch: () => Promise<void>;
 }
 
-export function useSettings(): UseSettingsReturn {
+export function useSettings(userId?: string): UseSettingsReturn {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchSettings = useCallback(async () => {
+    if (!userId) {
+      setSettings(null);
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
-      const data = await api.getSettings();
+      const data = await api.getSettings(userId);
       setSettings(data);
       setError(null);
 
@@ -33,7 +39,7 @@ export function useSettings(): UseSettingsReturn {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     fetchSettings();
@@ -42,6 +48,8 @@ export function useSettings(): UseSettingsReturn {
   const updateSettings = useCallback(async (
     updates: Partial<Omit<Settings, 'id'>>
   ): Promise<Settings | null> => {
+    if (!userId) return null;
+    
     try {
       // Optimistic update
       setSettings(prev => prev ? { ...prev, ...updates } : null);
@@ -59,7 +67,7 @@ export function useSettings(): UseSettingsReturn {
         }
       }
 
-      const updated = await api.updateSettings(updates);
+      const updated = await api.updateSettings(updates, userId);
       return updated;
     } catch (err) {
       // Revert on error
@@ -67,7 +75,7 @@ export function useSettings(): UseSettingsReturn {
       setError(err instanceof Error ? err : new Error('Failed to update settings'));
       return null;
     }
-  }, [fetchSettings]);
+  }, [fetchSettings, userId]);
 
   return {
     settings,

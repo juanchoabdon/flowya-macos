@@ -408,6 +408,56 @@ body {
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
 }
 
+/* Account menu */
+.account-btn {
+  opacity: 0.7;
+}
+
+.account-btn:hover {
+  opacity: 1;
+}
+
+.account-menu {
+  right: 0;
+  left: auto;
+  min-width: 200px;
+}
+
+.account-info {
+  padding: 12px 14px;
+}
+
+.account-name-input {
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.account-name-input::placeholder {
+  color: var(--text-placeholder);
+  font-weight: 400;
+}
+
+.account-name-input:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.account-email {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  word-break: break-all;
+}
+
 /* ========================================
    MAIN CONTENT AREA
    ======================================== */
@@ -1449,4 +1499,165 @@ body {
     opacity: 1;
     transform: scale(1) translateY(0);
   }
+}
+
+/* ========================================
+   LOGIN SCREEN
+   ======================================== */
+.login-container {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 18, 20, 0.98);
+  padding: var(--spacing-xl);
+  position: relative;
+}
+
+.login-drag-region {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  -webkit-app-region: drag;
+  z-index: 0;
+}
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 280px;
+  text-align: center;
+  -webkit-app-region: no-drag;
+}
+
+.login-logo {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 12px;
+  border-radius: 14px;
+}
+
+.login-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  letter-spacing: -0.3px;
+}
+
+.login-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  margin-bottom: 28px;
+}
+
+.login-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.input-group {
+  position: relative;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.input-group input::placeholder {
+  color: var(--text-placeholder);
+}
+
+.input-group input:focus {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.input-group input:disabled {
+  opacity: 0.5;
+}
+
+.login-error {
+  padding: 10px 14px;
+  background: rgba(255, 69, 58, 0.1);
+  border: 1px solid rgba(255, 69, 58, 0.2);
+  border-radius: 10px;
+  font-size: 12px;
+  color: #FF6B6B;
+  text-align: left;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 14px 20px;
+  margin-top: 4px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+}
+
+.login-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.35);
+}
+
+.login-btn:active {
+  transform: translateY(0);
+}
+
+.login-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.login-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+
+/* Loading auth state */
+.auth-loading {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 18, 20, 0.98);
+  gap: var(--spacing-md);
+}
+
+.auth-loading .spinner {
+  width: 24px;
+  height: 24px;
 }

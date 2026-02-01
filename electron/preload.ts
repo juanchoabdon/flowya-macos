@@ -23,6 +23,10 @@ const windowApi = {
   setMinimized: (minimized: boolean): Promise<boolean> =>
     ipcRenderer.invoke('window:setMinimized', minimized),
   
+  // Refresh dock icon and floating (call after login)
+  refreshDock: (): Promise<boolean> =>
+    ipcRenderer.invoke('window:refreshDock'),
+  
   // System info
   getTheme: (): Promise<'dark' | 'light'> => 
     ipcRenderer.invoke('system:getTheme'),

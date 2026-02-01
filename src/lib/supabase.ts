@@ -30,13 +30,13 @@ export async function getSpaces(): Promise<Space[]> {
   return data || [];
 }
 
-export async function createSpace(name: string): Promise<Space> {
+export async function createSpace(name: string, userId: string): Promise<Space> {
   // Pick a random pastel color
   const randomColor = SPACE_COLORS[Math.floor(Math.random() * SPACE_COLORS.length)];
   
   const { data, error } = await supabase
     .from('spaces')
-    .insert({ name, color: randomColor })
+    .insert({ name, color: randomColor, user_id: userId })
     .select()
     .single();
   
@@ -109,16 +109,17 @@ export async function getAllTodos(): Promise<Todo[]> {
 }
 
 export async function createTodo(spaceId: string, text: string): Promise<Todo> {
-  // Get current min position to place new todo at top
+  // Get current max position for backlog to place new todo at bottom (oldest first)
   const { data: existing } = await supabase
     .from('todos')
     .select('position')
     .eq('space_id', spaceId)
-    .order('position', { ascending: true })
+    .eq('status', 'backlog')
+    .order('position', { ascending: false })
     .limit(1);
   
-  const minPosition = existing?.[0]?.position ?? 1;
-  const newPosition = minPosition - 1;
+  const maxPosition = existing?.[0]?.position ?? -1;
+  const newPosition = maxPosition + 1;
 
   const { data, error } = await supabase
     .from('todos')
@@ -144,9 +145,19 @@ export async function updateTodo(
 ): Promise<Todo> {
   const updateData: Record<string, unknown> = { ...updates };
   
-  // Set completed_at when marking as done
+  // Set timestamps based on status changes
   if (updates.status !== undefined) {
-    updateData.completed_at = updates.status === 'done' ? new Date().toISOString() : null;
+    // Set started_at when moving to in_progress
+    if (updates.status === 'in_progress') {
+      updateData.started_at = new Date().toISOString();
+      updateData.completed_at = null;
+    } else if (updates.status === 'done') {
+      updateData.completed_at = new Date().toISOString();
+    } else {
+      // backlog - clear both timestamps
+      updateData.started_at = null;
+      updateData.completed_at = null;
+    }
   }
   
   const { data, error } = await supabase
@@ -223,17 +234,17 @@ export async function archiveAllDone(spaceId?: string): Promise<void> {
 
 // ============ Settings API ============
 
-export async function getSettings(): Promise<Settings> {
+export async function getSettings(userId: string): Promise<Settings> {
   const { data, error } = await supabase
     .from('settings')
     .select('*')
-    .eq('id', 1)
+    .eq('user_id', userId)
     .single();
   
   if (error) {
     // If no settings exist, create default settings
     if (error.code === 'PGRST116') {
-      return createDefaultSettings();
+      return createDefaultSettings(userId);
     }
     console.error('Error fetching settings:', error);
     throw error;
@@ -241,13 +252,15 @@ export async function getSettings(): Promise<Settings> {
   return data;
 }
 
-async function createDefaultSettings(): Promise<Settings> {
-  const defaultSettings: Omit<Settings, 'id'> & { id: number } = {
-    id: 1,
+async function createDefaultSettings(userId: string): Promise<Settings> {
+  const defaultSettings = {
+    user_id: userId,
     always_on_top: true,
     visible_on_all_workspaces: true,
     opacity: 1.0,
     last_selected_space: null,
+    all_spaces_color: '#64B5F6',
+    nickname: null,
   };
   
   const { data, error } = await supabase
@@ -264,18 +277,53 @@ async function createDefaultSettings(): Promise<Settings> {
 }
 
 export async function updateSettings(
-  updates: Partial<Omit<Settings, 'id'>>
+  updates: Partial<Omit<Settings, 'id'>>,
+  userId: string
 ): Promise<Settings> {
-  const { data, error } = await supabase
+  // First try to get existing settings
+  const { data: existing } = await supabase
     .from('settings')
-    .update(updates)
-    .eq('id', 1)
-    .select()
+    .select('*')
+    .eq('user_id', userId)
     .single();
   
-  if (error) {
-    console.error('Error updating settings:', error);
-    throw error;
+  if (existing) {
+    // Update existing settings
+    const { data, error } = await supabase
+      .from('settings')
+      .update(updates)
+      .eq('user_id', userId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error updating settings:', error);
+      throw error;
+    }
+    return data;
+  } else {
+    // Create new settings with the updates
+    const newSettings = {
+      user_id: userId,
+      always_on_top: true,
+      visible_on_all_workspaces: true,
+      opacity: 1.0,
+      last_selected_space: null,
+      all_spaces_color: '#64B5F6',
+      nickname: null,
+      ...updates,
+    };
+    
+    const { data, error } = await supabase
+      .from('settings')
+      .insert(newSettings)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error creating settings:', error);
+      throw error;
+    }
+    return data;
   }
-  return data;
 }

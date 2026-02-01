@@ -19,7 +19,7 @@ interface UseTodosReturn {
   isAllView: boolean;
 }
 
-export function useTodos(spaceId: string | null): UseTodosReturn {
+export function useTodos(spaceId: string | null, userId?: string): UseTodosReturn {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -27,7 +27,7 @@ export function useTodos(spaceId: string | null): UseTodosReturn {
   const isAllView = spaceId === ALL_SPACES_ID;
 
   const fetchTodos = useCallback(async () => {
-    if (!spaceId) {
+    if (!spaceId || !userId) {
       setTodos([]);
       setLoading(false);
       return;
@@ -46,7 +46,7 @@ export function useTodos(spaceId: string | null): UseTodosReturn {
     } finally {
       setLoading(false);
     }
-  }, [spaceId, isAllView]);
+  }, [spaceId, isAllView, userId]);
 
   useEffect(() => {
     fetchTodos();
@@ -72,21 +72,43 @@ export function useTodos(spaceId: string | null): UseTodosReturn {
     updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position'>>
   ): Promise<Todo | null> => {
     try {
+      const currentTodo = todos.find(t => t.id === id);
+      const finalUpdates = { ...updates };
+      
+      // When moving to a new status, set position to end so oldest are at top
+      if (updates.status && updates.status !== currentTodo?.status) {
+        const statusTodos = todos.filter(t => t.status === updates.status);
+        const maxPosition = statusTodos.length > 0 
+          ? Math.max(...statusTodos.map(t => t.position)) + 1 
+          : 0;
+        finalUpdates.position = maxPosition;
+      }
+      
       // Optimistic update
       setTodos(prev => prev.map(t => {
         if (t.id === id) {
-          return {
-            ...t,
-            ...updates,
-            completed_at: updates.status !== undefined
-              ? (updates.status === 'done' ? new Date().toISOString() : null)
-              : t.completed_at,
-          };
+          const newTodo = { ...t, ...finalUpdates };
+          
+          // Update timestamps based on status
+          if (updates.status !== undefined) {
+            if (updates.status === 'in_progress') {
+              newTodo.started_at = new Date().toISOString();
+              newTodo.completed_at = null;
+            } else if (updates.status === 'done') {
+              newTodo.completed_at = new Date().toISOString();
+            } else {
+              // backlog
+              newTodo.started_at = null;
+              newTodo.completed_at = null;
+            }
+          }
+          
+          return newTodo;
         }
         return t;
       }));
 
-      const updated = await api.updateTodo(id, updates);
+      const updated = await api.updateTodo(id, finalUpdates);
       return updated;
     } catch (err) {
       // Revert on error
@@ -94,41 +116,58 @@ export function useTodos(spaceId: string | null): UseTodosReturn {
       setError(err instanceof Error ? err : new Error('Failed to update todo'));
       return null;
     }
-  }, [fetchTodos]);
+  }, [fetchTodos, todos]);
 
   const reorderTodos = useCallback(async (draggedId: string, targetId: string): Promise<void> => {
     if (draggedId === targetId) return;
     
-    // Find the items
-    const draggedIndex = todos.findIndex(t => t.id === draggedId);
-    const targetIndex = todos.findIndex(t => t.id === targetId);
+    // Find the dragged item to get its status
+    const draggedItem = todos.find(t => t.id === draggedId);
+    const targetItem = todos.find(t => t.id === targetId);
+    
+    if (!draggedItem || !targetItem) return;
+    
+    // Only reorder within same status
+    const status = draggedItem.status;
+    
+    // Get only todos with the same status, sorted by position
+    const statusTodos = todos
+      .filter(t => t.status === status)
+      .sort((a, b) => a.position - b.position);
+    
+    const draggedIndex = statusTodos.findIndex(t => t.id === draggedId);
+    const targetIndex = statusTodos.findIndex(t => t.id === targetId);
     
     if (draggedIndex === -1 || targetIndex === -1) return;
 
-    // Create new array with reordered items
-    const newTodos = [...todos];
-    const [draggedItem] = newTodos.splice(draggedIndex, 1);
-    newTodos.splice(targetIndex, 0, draggedItem);
+    // Reorder within the status group
+    const newStatusTodos = [...statusTodos];
+    const [removed] = newStatusTodos.splice(draggedIndex, 1);
+    newStatusTodos.splice(targetIndex, 0, removed);
 
-    // Update positions
-    const updatedTodos = newTodos.map((todo, index) => ({
+    // Update positions only for this status group
+    const updatedStatusTodos = newStatusTodos.map((todo, index) => ({
       ...todo,
       position: index,
     }));
+    
+    // Merge back with other todos
+    const otherTodos = todos.filter(t => t.status !== status);
+    const updatedTodos = [...otherTodos, ...updatedStatusTodos];
 
     // Optimistic update
     setTodos(updatedTodos);
 
-    // Persist to database
+    // Persist to database - only update the reordered status todos
     try {
-      const todoIds = updatedTodos.map(t => t.id);
+      const todoIds = updatedStatusTodos.map(t => t.id);
       await api.reorderTodos(todoIds);
     } catch (err) {
       // Revert on error
       fetchTodos();
       setError(err instanceof Error ? err : new Error('Failed to reorder todos'));
     }
-  }, [todos, spaceId, fetchTodos]);
+  }, [todos, fetchTodos]);
 
   const deleteTodo = useCallback(async (id: string): Promise<boolean> => {
     try {

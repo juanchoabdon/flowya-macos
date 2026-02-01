@@ -1,6 +1,7 @@
 // Database types
 export interface Space {
   id: string;
+  user_id: string;
   name: string;
   color: string;
   created_at: string;
@@ -35,16 +36,20 @@ export interface Todo {
   status: TaskStatus;
   position: number;
   created_at: string;
+  started_at: string | null;  // When moved to in_progress
   completed_at: string | null;
   archived: boolean;
 }
 
 export interface Settings {
-  id: number;
+  id?: number;
+  user_id: string;
   always_on_top: boolean;
   visible_on_all_workspaces: boolean;
   opacity: number;
   last_selected_space: string | null;
+  all_spaces_color: string | null;
+  nickname: string | null;
 }
 
 // Filter types
@@ -58,6 +63,7 @@ export interface WindowApi {
   setOpacity: (value: number) => Promise<boolean>;
   toggleVisibility: () => Promise<boolean>;
   setMinimized: (minimized: boolean) => Promise<boolean>;
+  refreshDock: () => Promise<boolean>;
   getTheme: () => Promise<'dark' | 'light'>;
   onFocusChange: (callback: (focused: boolean) => void) => () => void;
 }

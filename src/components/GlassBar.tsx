@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import type { Space } from '../types';
+import type { Space, Settings } from '../types';
 import { SPACE_COLORS } from '../types';
 import { ALL_SPACES_ID } from '../hooks/useTodos';
 
@@ -11,7 +11,10 @@ interface GlassBarProps {
   onCreateSpace: (name: string) => void;
   onUpdateSpace: (id: string, updates: Partial<Pick<Space, 'name' | 'color'>>) => void;
   onDeleteSpace: (id: string) => void;
-  onMinimize: () => void;
+  settings: Settings | null;
+  onUpdateSettings: (updates: Partial<Settings>) => void;
+  onSignOut?: () => void;
+  userEmail?: string;
 }
 
 export function GlassBar({
@@ -22,7 +25,10 @@ export function GlassBar({
   onCreateSpace,
   onUpdateSpace,
   onDeleteSpace,
-  onMinimize,
+  settings,
+  onUpdateSettings,
+  onSignOut,
+  userEmail,
 }: GlassBarProps) {
   const isAllSelected = selectedSpaceId === ALL_SPACES_ID;
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -30,12 +36,16 @@ export function GlassBar({
   const [newSpaceName, setNewSpaceName] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [colorPickerSpaceId, setColorPickerSpaceId] = useState<string | null>(null);
+  const [showAllColorPicker, setShowAllColorPicker] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const titleBarRef = useRef<HTMLDivElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   
-  // Get header color from selected space
-  const headerColor = selectedSpace?.color || '#C7CEEA';
+  // Get header color from selected space or "All" color from settings
+  const allSpacesColor = settings?.all_spaces_color || '#64B5F6';
+  const headerColor = isAllSelected ? allSpacesColor : (selectedSpace?.color || '#C7CEEA');
   
   // Swipe gesture for changing spaces
   const lastSwipeTime = useRef(0);
@@ -52,12 +62,26 @@ export function GlassBar({
         setNewSpaceName('');
         setConfirmDeleteId(null);
         setColorPickerSpaceId(null);
+        setShowAllColorPicker(false);
+      }
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
       }
     }
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Close dropdown when space changes (e.g., via keyboard shortcut)
+  useEffect(() => {
+    setDropdownOpen(false);
+    setShowNewSpaceInput(false);
+    setNewSpaceName('');
+    setConfirmDeleteId(null);
+    setColorPickerSpaceId(null);
+    setShowAllColorPicker(false);
+  }, [selectedSpaceId]);
 
   // Focus input when showing
   useEffect(() => {
@@ -111,17 +135,27 @@ export function GlassBar({
   };
 
   const headerStyle = {
-    background: isAllSelected 
-      ? 'linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)'
-      : `linear-gradient(180deg, ${headerColor}90 0%, ${headerColor}40 100%)`,
+    background: `linear-gradient(180deg, ${headerColor}90 0%, ${headerColor}40 100%)`,
+  };
+
+  const handleTitleBarClick = (e: React.MouseEvent) => {
+    // Close dropdown if clicking on the title bar but not on the dropdown itself
+    if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      setDropdownOpen(false);
+      setShowNewSpaceInput(false);
+      setNewSpaceName('');
+      setConfirmDeleteId(null);
+      setColorPickerSpaceId(null);
+      setShowAllColorPicker(false);
+    }
   };
 
   return (
-    <div className="title-bar" ref={titleBarRef} onWheel={handleWheel} style={headerStyle}>
+    <div className="title-bar" ref={titleBarRef} onWheel={handleWheel} onClick={handleTitleBarClick} style={headerStyle}>
       {/* Drag layer for window dragging */}
       <div className="title-bar-swipe-layer" />
       <div className="title-bar-left">
-        <span className="app-title">Juan Diego</span>
+        <span className="app-title">{settings?.nickname || 'Flowya'}</span>
         
         <div className="dropdown" ref={dropdownRef}>
           <button
@@ -137,14 +171,41 @@ export function GlassBar({
           {dropdownOpen && (
             <div className="dropdown-menu" onClick={() => setConfirmDeleteId(null)}>
               {/* "All" - All spaces combined */}
-              <div
-                className={`dropdown-item ${isAllSelected ? 'selected' : ''}`}
-                onClick={() => {
-                  onSelectSpace(ALL_SPACES_ID);
-                  setDropdownOpen(false);
-                }}
-              >
-                <span style={{ flex: 1 }}>📋 All</span>
+              <div>
+                <div
+                  className={`dropdown-item ${isAllSelected ? 'selected' : ''}`}
+                  onClick={() => {
+                    onSelectSpace(ALL_SPACES_ID);
+                    setDropdownOpen(false);
+                  }}
+                >
+                  <button
+                    className="color-dot"
+                    style={{ background: allSpacesColor }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowAllColorPicker(!showAllColorPicker);
+                      setColorPickerSpaceId(null);
+                    }}
+                    title="Change color"
+                  />
+                  <span style={{ flex: 1 }}>All</span>
+                </div>
+                {showAllColorPicker && (
+                  <div className="color-picker" onClick={(e) => e.stopPropagation()}>
+                    {SPACE_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        className={`color-option ${allSpacesColor === color ? 'selected' : ''}`}
+                        style={{ background: color }}
+                        onClick={() => {
+                          onUpdateSettings({ all_spaces_color: color });
+                          setShowAllColorPicker(false);
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
               
               <div className="dropdown-divider" />
@@ -236,15 +297,52 @@ export function GlassBar({
                   <span>New Space</span>
                 </div>
               )}
-            </div>
+              
+                          </div>
           )}
         </div>
       </div>
       
       <div className="title-bar-right">
-        <button className="icon-btn minimize-btn" onClick={onMinimize} title="Hide (⌘⇧Space or click Dock icon)">
-          <HideIcon />
-        </button>
+        <div className="dropdown" ref={accountMenuRef}>
+          <button 
+            className="icon-btn account-btn" 
+            onClick={() => setAccountMenuOpen(!accountMenuOpen)}
+            title="Settings"
+          >
+            <SettingsIcon />
+          </button>
+          
+          {accountMenuOpen && (
+            <div className="dropdown-menu account-menu">
+              <div className="account-info">
+                <input
+                  type="text"
+                  className="account-name-input"
+                  placeholder="Nickname..."
+                  value={settings?.nickname || ''}
+                  onChange={(e) => onUpdateSettings({ nickname: e.target.value })}
+                />
+                <div className="account-email">{userEmail}</div>
+              </div>
+              
+              <div className="dropdown-divider" />
+              
+              {onSignOut && (
+                <div
+                  className="dropdown-item danger"
+                  onClick={() => {
+                    onSignOut();
+                    setAccountMenuOpen(false);
+                  }}
+                >
+                  <LogoutIcon size={14} />
+                  <span>Sign Out</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -292,18 +390,35 @@ function TrashIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-function HideIcon() {
+function LogoutIcon({ size = 14 }: { size?: number }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
       <path
-        d="M2 8C2 8 4 4 8 4C12 4 14 8 14 8C14 8 12 12 8 12C4 12 2 8 2 8Z"
+        d="M5 2H3C2.44772 2 2 2.44772 2 3V11C2 11.5523 2.44772 12 3 12H5M9 10L12 7M12 7L9 4M12 7H5"
         stroke="currentColor"
-        strokeWidth="1.5"
+        strokeWidth="1.2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.5"/>
-      <path d="M3 13L13 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M8 10C9.10457 10 10 9.10457 10 8C10 6.89543 9.10457 6 8 6C6.89543 6 6 6.89543 6 8C6 9.10457 6.89543 10 8 10Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M13.5 8C13.5 7.66 13.47 7.33 13.42 7L14.92 5.83C15.07 5.71 15.11 5.5 15.01 5.32L13.61 2.88C13.51 2.7 13.31 2.63 13.11 2.7L11.36 3.39C10.95 3.08 10.5 2.82 10.01 2.63L9.75 0.78C9.72 0.57 9.53 0.41 9.32 0.41H6.52C6.31 0.41 6.13 0.57 6.1 0.78L5.84 2.63C5.35 2.82 4.9 3.08 4.49 3.39L2.74 2.7C2.54 2.62 2.34 2.7 2.24 2.88L0.84 5.32C0.73 5.5 0.78 5.71 0.93 5.83L2.43 7C2.38 7.33 2.35 7.66 2.35 8C2.35 8.34 2.38 8.67 2.43 9L0.93 10.17C0.78 10.29 0.74 10.5 0.84 10.68L2.24 13.12C2.34 13.3 2.54 13.37 2.74 13.3L4.49 12.61C4.9 12.92 5.35 13.18 5.84 13.37L6.1 15.22C6.13 15.43 6.31 15.59 6.52 15.59H9.32C9.53 15.59 9.71 15.43 9.74 15.22L10 13.37C10.49 13.18 10.94 12.92 11.35 12.61L13.1 13.3C13.3 13.38 13.5 13.3 13.6 13.12L15 10.68C15.1 10.5 15.06 10.29 14.91 10.17L13.41 9C13.47 8.67 13.5 8.34 13.5 8Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

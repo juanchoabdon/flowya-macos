@@ -2,18 +2,21 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSpaces } from './hooks/useSpaces';
 import { useTodos } from './hooks/useTodos';
 import { useSettings } from './hooks/useSettings';
+import { useAuth } from './hooks/useAuth';
 import { GlassBar } from './components/GlassBar';
 import { AddTodo } from './components/AddTodo';
 import { FilterBar } from './components/FilterBar';
 import { TodoList } from './components/TodoList';
 import { TodoDetail } from './components/TodoDetail';
+import { Login } from './components/Login';
 import type { FilterType, Todo } from './types';
 
 export default function App() {
-  const { spaces, loading: spacesLoading, createSpace, updateSpace, deleteSpace } = useSpaces();
-  const { settings, loading: settingsLoading, updateSettings } = useSettings();
+  const { user, loading: authLoading, signInWithEmail, signOut } = useAuth();
+  const { spaces, loading: spacesLoading, createSpace, updateSpace, deleteSpace } = useSpaces(user?.id);
+  const { settings, loading: settingsLoading, updateSettings } = useSettings(user?.id);
   
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>('__all__');
   const [filter, setFilter] = useState<FilterType>('in_progress');
   const [windowFocused, setWindowFocused] = useState(true);
   const [detailTodo, setDetailTodo] = useState<Todo | null>(null);
@@ -28,16 +31,17 @@ export default function App() {
     archiveAllDone,
     reorderTodos,
     isAllView,
-  } = useTodos(selectedSpaceId);
+  } = useTodos(selectedSpaceId, user?.id);
 
-  // Set initial selected space from settings or first space (only once)
+  // Refresh dock icon after login
+  const prevUserRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (spaces.length > 0 && !selectedSpaceId) {
-      const lastSpace = settings?.last_selected_space;
-      const spaceExists = lastSpace && spaces.some(s => s.id === lastSpace);
-      setSelectedSpaceId(spaceExists ? lastSpace : spaces[0].id);
+    // If user just logged in (was undefined, now has value)
+    if (prevUserRef.current === undefined && user?.id) {
+      window.windowApi?.refreshDock();
     }
-  }, [spaces.length, settings?.last_selected_space]); // Minimal dependencies
+    prevUserRef.current = user?.id;
+  }, [user?.id]);
 
   // Create default space if none exist (only runs once when loaded)
   useEffect(() => {
@@ -62,25 +66,30 @@ export default function App() {
     }
   }, [selectedSpaceId]); // Only depend on selectedSpaceId to avoid loops
 
-  // Keyboard shortcuts for switching spaces (Cmd+1, Cmd+2, etc.)
+  // Define handleSelectSpace first so it can be used in effects
+  const handleSelectSpace = useCallback((id: string) => {
+    setSelectedSpaceId(id);
+  }, []);
+
+  // Keyboard shortcuts for switching spaces (Cmd+1 = All, Cmd+2-9 = spaces)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Check for Cmd (Mac) or Ctrl (Windows)
       if (e.metaKey || e.ctrlKey) {
         const key = e.key;
         
-        // Cmd+0 = All
-        if (key === '0') {
+        // Cmd+1 = All
+        if (key === '1') {
           e.preventDefault();
           handleSelectSpace('__all__');
           return;
         }
         
-        // Cmd+1 through Cmd+9 = spaces 1-9
+        // Cmd+2 through Cmd+9 = spaces 1-8
         const num = parseInt(key);
-        if (num >= 1 && num <= 9) {
+        if (num >= 2 && num <= 9) {
           e.preventDefault();
-          const spaceIndex = num - 1;
+          const spaceIndex = num - 2; // Cmd+2 = index 0, Cmd+3 = index 1, etc.
           if (spaceIndex < spaces.length) {
             handleSelectSpace(spaces[spaceIndex].id);
           }
@@ -90,7 +99,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [spaces]);
+  }, [spaces, handleSelectSpace]);
 
   // Listen for window focus changes to adjust opacity
   useEffect(() => {
@@ -102,10 +111,27 @@ export default function App() {
     }
   }, []);
 
-  const handleSelectSpace = (id: string) => {
-    setSelectedSpaceId(id);
-    setFilter('in_progress'); // Reset filter when switching spaces
-  };
+  // Track previous values to detect space changes and loading completion
+  const prevSpaceRef = useRef<string | null>(null);
+  const prevLoadingRef = useRef(true);
+  
+  // Auto-switch filter when space changes and todos finish loading
+  useEffect(() => {
+    const spaceChanged = selectedSpaceId !== prevSpaceRef.current;
+    const justFinishedLoading = prevLoadingRef.current && !todosLoading;
+    
+    // Update refs
+    if (spaceChanged) {
+      prevSpaceRef.current = selectedSpaceId;
+    }
+    prevLoadingRef.current = todosLoading;
+    
+    // Set filter when loading finishes after a space change (or initial load)
+    if (justFinishedLoading) {
+      const inProgressCount = todos.filter(t => t.status === 'in_progress').length;
+      setFilter(inProgressCount > 0 ? 'in_progress' : 'backlog');
+    }
+  }, [selectedSpaceId, todosLoading, todos]);
 
   const handleCreateSpace = async (name: string) => {
     const space = await createSpace(name);
@@ -144,17 +170,22 @@ export default function App() {
     }
   };
 
-  // Filter todos by status
-  const filteredTodos = todos.filter(todo => {
-    if (filter === 'backlog') return todo.status === 'backlog';
-    if (filter === 'in_progress') return todo.status === 'in_progress';
-    if (filter === 'done') return todo.status === 'done';
-    return true;
-  });
+  // Filter todos by status and apply sorting
+  const filteredTodos = todos
+    .filter(todo => {
+      if (filter === 'backlog') return todo.status === 'backlog';
+      if (filter === 'in_progress') return todo.status === 'in_progress';
+      if (filter === 'done') return todo.status === 'done';
+      return true;
+    })
+    .sort((a, b) => {
+      // All statuses now use position for manual reordering
+      return a.position - b.position;
+    });
 
-  // Count for display
-  const activeCount = todos.filter(t => t.status !== 'done').length;
-  const totalCount = todos.length;
+  // Count for display: done tasks vs pending (backlog + in_progress)
+  const doneCount = todos.filter(t => t.status === 'done').length;
+  const pendingCount = todos.filter(t => t.status !== 'done').length;
 
   // Swipe gesture handling for trackpad
   const swipeAccumulator = useRef(0);
@@ -214,6 +245,24 @@ export default function App() {
     }
   }, [handleSwipe]);
 
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="auth-loading">
+        <div className="spinner" />
+      </div>
+    );
+  }
+
+  // Show login if not authenticated
+  if (!user) {
+    return (
+      <Login
+        onSignInWithEmail={signInWithEmail}
+      />
+    );
+  }
+
   if (spacesLoading || settingsLoading) {
     return (
       <div className={`app-container ${!windowFocused ? 'unfocused' : ''}`}>
@@ -223,11 +272,6 @@ export default function App() {
       </div>
     );
   }
-
-  // Handle minimize - just hide the window
-  const handleMinimize = () => {
-    window.windowApi?.toggleVisibility();
-  };
 
   return (
     <div className={`app-container ${!windowFocused ? 'unfocused' : ''}`}>
@@ -239,7 +283,10 @@ export default function App() {
         onCreateSpace={handleCreateSpace}
         onUpdateSpace={updateSpace}
         onDeleteSpace={handleDeleteSpace}
-        onMinimize={handleMinimize}
+        settings={settings}
+        onUpdateSettings={updateSettings}
+        onSignOut={signOut}
+        userEmail={user?.email}
       />
       
       <div className="main-content">
@@ -269,8 +316,8 @@ export default function App() {
                   triggerCelebration();
                 }
               }}
-              activeCount={activeCount}
-              totalCount={totalCount}
+              doneCount={doneCount}
+              pendingCount={pendingCount}
             />
             
             <TodoList
