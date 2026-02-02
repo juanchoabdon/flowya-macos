@@ -1,6 +1,6 @@
 {
   "name": "flowya",
-  "version": "1.0.18",
+  "version": "1.0.22",
   "description": "A floating macOS productivity app with glassmorphism UI",
   "main": "dist-electron/electron/main.js",
   "author": "Flowya",
@@ -16,6 +16,7 @@
     "release:major": "./scripts/release.sh major"
   },
   "dependencies": {
+    "@amplitude/analytics-browser": "^2.34.0",
     "@supabase/supabase-js": "^2.39.0",
     "electron-liquid-glass": "^1.1.1",
     "electron-updater": "^6.7.3",
