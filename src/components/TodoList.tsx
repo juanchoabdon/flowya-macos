@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { Todo, TaskStatus } from '../types';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import type { Todo, TaskStatus, Space } from '../types';
 import { TodoItem } from './TodoItem';
 
 function EmptyIcon() {
@@ -53,6 +53,8 @@ interface TodoListProps {
   onReorder: (draggedId: string, targetId: string) => void;
   emptyMessage: string;
   showClearAll?: boolean;
+  spaces?: Space[];
+  isAllView?: boolean;
 }
 
 export function TodoList({
@@ -67,12 +69,68 @@ export function TodoList({
   onReorder,
   emptyMessage,
   showClearAll,
+  spaces,
+  isAllView,
 }: TodoListProps) {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const scrollIntervalRef = useRef<number | null>(null);
+
+  // Auto-scroll during drag
+  const handleAutoScroll = useCallback((e: React.DragEvent) => {
+    if (!listRef.current) return;
+    
+    const rect = listRef.current.getBoundingClientRect();
+    const scrollThreshold = 60; // px from edge to start scrolling
+    const scrollSpeed = 8; // px per frame
+    
+    const mouseY = e.clientY;
+    const topEdge = rect.top + scrollThreshold;
+    const bottomEdge = rect.bottom - scrollThreshold;
+    
+    // Clear any existing scroll interval
+    if (scrollIntervalRef.current) {
+      cancelAnimationFrame(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+    
+    if (mouseY < topEdge) {
+      // Scroll up
+      const scrollUp = () => {
+        if (listRef.current && listRef.current.scrollTop > 0) {
+          listRef.current.scrollTop -= scrollSpeed;
+          scrollIntervalRef.current = requestAnimationFrame(scrollUp);
+        }
+      };
+      scrollIntervalRef.current = requestAnimationFrame(scrollUp);
+    } else if (mouseY > bottomEdge) {
+      // Scroll down
+      const scrollDown = () => {
+        if (listRef.current) {
+          const maxScroll = listRef.current.scrollHeight - listRef.current.clientHeight;
+          if (listRef.current.scrollTop < maxScroll) {
+            listRef.current.scrollTop += scrollSpeed;
+            scrollIntervalRef.current = requestAnimationFrame(scrollDown);
+          }
+        }
+      };
+      scrollIntervalRef.current = requestAnimationFrame(scrollDown);
+    }
+  }, []);
+
+  // Clean up scroll interval on drag end
+  useEffect(() => {
+    if (!isDragging && scrollIntervalRef.current) {
+      cancelAnimationFrame(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+  }, [isDragging]);
 
   const handleDragOver = (e: React.DragEvent, todoId: string) => {
     e.preventDefault();
     setDragOverId(todoId);
+    handleAutoScroll(e);
   };
 
   const handleDragLeave = () => {
@@ -82,10 +140,29 @@ export function TodoList({
   const handleDrop = (e: React.DragEvent, targetId: string) => {
     e.preventDefault();
     setDragOverId(null);
+    setIsDragging(false);
+    
+    if (scrollIntervalRef.current) {
+      cancelAnimationFrame(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
     
     const draggedId = e.dataTransfer.getData('taskId');
     if (draggedId && draggedId !== targetId) {
       onReorder(draggedId, targetId);
+    }
+  };
+
+  const handleDragEnter = () => {
+    setIsDragging(true);
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+    setDragOverId(null);
+    if (scrollIntervalRef.current) {
+      cancelAnimationFrame(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
     }
   };
 
@@ -101,7 +178,12 @@ export function TodoList({
           <p className="empty-state-text">{emptyMessage}</p>
         </div>
       ) : (
-        <div className="todo-list">
+        <div 
+          className="todo-list"
+          ref={listRef}
+          onDragEnter={handleDragEnter}
+          onDragEnd={handleDragEnd}
+        >
           {todos.map((todo) => (
             <div
               key={todo.id}
@@ -117,9 +199,17 @@ export function TodoList({
                 onDelete={onDelete}
                 onArchive={onArchive}
                 onOpenDetail={onOpenDetail}
+                space={isAllView ? spaces?.find(s => s.id === todo.space_id) : undefined}
               />
             </div>
           ))}
+          {/* End drop zone to allow placing items at the very end */}
+          <div
+            className={`todo-drop-zone end-drop-zone ${dragOverId === '__end__' ? 'drag-over' : ''}`}
+            onDragOver={(e) => handleDragOver(e, '__end__')}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, '__end__')}
+          />
           {showClearAll && todos.length > 0 && onArchiveAllDone && (
             <button className="clear-all-btn" onClick={onArchiveAllDone}>
               <ArchiveIcon />

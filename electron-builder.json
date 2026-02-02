@@ -16,6 +16,11 @@
       "to": "icon.png"
     }
   ],
+  "publish": {
+    "provider": "github",
+    "owner": "juanchoabdon",
+    "repo": "flowya-releases"
+  },
   "mac": {
     "target": [
       {
@@ -34,6 +39,9 @@
     "gatekeeperAssess": false,
     "entitlements": "build/entitlements.mac.plist",
     "entitlementsInherit": "build/entitlements.mac.plist",
+    "notarize": {
+      "teamId": "6N88Q4384Q"
+    },
     "extendInfo": {
       "NSMicrophoneUsageDescription": false,
       "NSCameraUsageDescription": false,

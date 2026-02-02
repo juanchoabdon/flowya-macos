@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import type { Todo, TaskStatus } from '../types';
+import type { Todo, TaskStatus, Space } from '../types';
 
 interface TodoItemProps {
   todo: Todo;
@@ -8,6 +8,7 @@ interface TodoItemProps {
   onDelete: (id: string) => void;
   onArchive: (id: string) => void;
   onOpenDetail: (todo: Todo) => void;
+  space?: Space; // Only provided in "All" view
 }
 
 const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bg: string }> = {
@@ -16,7 +17,7 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bg: stri
   done: { label: 'Done', color: '#30D158', bg: 'rgba(48, 209, 88, 0.2)' },
 };
 
-export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, onOpenDetail }: TodoItemProps) {
+export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, onOpenDetail, space }: TodoItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(todo.text);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -153,6 +154,18 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
             </span>
             {todo.description && (
               <NoteIcon />
+            )}
+            {space && (
+              <span 
+                className="space-label"
+                style={{ 
+                  backgroundColor: `${space.color}25`,
+                  color: space.color,
+                  borderColor: `${space.color}40`,
+                }}
+              >
+                {space.name}
+              </span>
             )}
           </div>
         )}

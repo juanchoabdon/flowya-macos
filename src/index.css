@@ -67,11 +67,11 @@
   
   /* Typography */
   --font-family: 'PP Object Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-size-xs: 11px;
-  --font-size-sm: 12px;
-  --font-size-md: 13px;
-  --font-size-lg: 15px;
-  --font-size-xl: 17px;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
   
   /* Transitions */
   --transition-fast: 120ms ease;
@@ -458,6 +458,43 @@ body {
   word-break: break-all;
 }
 
+.version-info {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-align: center;
+  opacity: 0.7;
+}
+
+.account-btn {
+  position: relative;
+}
+
+.update-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  background: #30D158;
+  border-radius: 50%;
+  animation: pulse-update 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-update {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
+
+.update-item {
+  color: #30D158 !important;
+  font-weight: 600;
+}
+
+.update-item:hover {
+  background: rgba(48, 209, 88, 0.15) !important;
+}
+
 /* ========================================
    MAIN CONTENT AREA
    ======================================== */
@@ -681,6 +718,20 @@ body {
   animation: pulse-line 1s ease infinite;
 }
 
+.end-drop-zone {
+  min-height: 40px;
+  flex-shrink: 0;
+}
+
+.end-drop-zone.drag-over {
+  transform: none;
+}
+
+.end-drop-zone.drag-over::before {
+  margin-bottom: 0;
+  margin-top: 4px;
+}
+
 @keyframes pulse-line {
   0%, 100% { opacity: 0.7; }
   50% { opacity: 1; }
@@ -882,6 +933,17 @@ body {
   align-items: center;
   gap: 6px;
   cursor: pointer;
+  flex-wrap: wrap;
+}
+
+.space-label {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .todo-text-input {
@@ -919,6 +981,12 @@ body {
   justify-content: space-between;
   padding: var(--spacing-md) var(--spacing-lg);
   border-bottom: 1px solid var(--glass-border);
+}
+
+.todo-detail-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .todo-detail-back {

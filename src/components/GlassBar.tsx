@@ -15,6 +15,7 @@ interface GlassBarProps {
   onUpdateSettings: (updates: Partial<Settings>) => void;
   onSignOut?: () => void;
   userEmail?: string;
+  windowFocused?: boolean;
 }
 
 export function GlassBar({
@@ -29,6 +30,7 @@ export function GlassBar({
   onUpdateSettings,
   onSignOut,
   userEmail,
+  windowFocused = true,
 }: GlassBarProps) {
   const isAllSelected = selectedSpaceId === ALL_SPACES_ID;
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -38,10 +40,21 @@ export function GlassBar({
   const [colorPickerSpaceId, setColorPickerSpaceId] = useState<string | null>(null);
   const [showAllColorPicker, setShowAllColorPicker] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const titleBarRef = useRef<HTMLDivElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  
+  // Listen for update events
+  useEffect(() => {
+    if (window.windowApi?.onUpdateDownloaded) {
+      const unsubscribe = window.windowApi.onUpdateDownloaded((version) => {
+        setUpdateAvailable(version);
+      });
+      return unsubscribe;
+    }
+  }, []);
   
   // Get header color from selected space or "All" color from settings
   const allSpacesColor = settings?.all_spaces_color || '#64B5F6';
@@ -135,7 +148,9 @@ export function GlassBar({
   };
 
   const headerStyle = {
-    background: `linear-gradient(180deg, ${headerColor}90 0%, ${headerColor}40 100%)`,
+    background: windowFocused 
+      ? `linear-gradient(135deg, ${headerColor}D0 0%, ${headerColor}B8 25%, ${headerColor}D0 50%, ${headerColor}B8 75%, ${headerColor}D0 100%)`
+      : `${headerColor}70`,
   };
 
   const handleTitleBarClick = (e: React.MouseEvent) => {
@@ -306,11 +321,12 @@ export function GlassBar({
       <div className="title-bar-right">
         <div className="dropdown" ref={accountMenuRef}>
           <button 
-            className="icon-btn account-btn" 
+            className={`icon-btn account-btn ${updateAvailable ? 'has-update' : ''}`}
             onClick={() => setAccountMenuOpen(!accountMenuOpen)}
-            title="Settings"
+            title={updateAvailable ? `Update v${updateAvailable} available` : 'Settings'}
           >
             <SettingsIcon />
+            {updateAvailable && <span className="update-dot" />}
           </button>
           
           {accountMenuOpen && (
@@ -338,6 +354,25 @@ export function GlassBar({
                 >
                   <LogoutIcon size={14} />
                   <span>Sign Out</span>
+                </div>
+              )}
+              
+              <div className="dropdown-divider" />
+              
+              {updateAvailable ? (
+                <div
+                  className="dropdown-item update-item"
+                  onClick={() => {
+                    window.windowApi?.installUpdate();
+                    setAccountMenuOpen(false);
+                  }}
+                >
+                  <UpdateIcon size={14} />
+                  <span>Update to v{updateAvailable}</span>
+                </div>
+              ) : (
+                <div className="version-info">
+                  v{__APP_VERSION__}
                 </div>
               )}
             </div>
@@ -416,6 +451,20 @@ function SettingsIcon() {
         d="M13.5 8C13.5 7.66 13.47 7.33 13.42 7L14.92 5.83C15.07 5.71 15.11 5.5 15.01 5.32L13.61 2.88C13.51 2.7 13.31 2.63 13.11 2.7L11.36 3.39C10.95 3.08 10.5 2.82 10.01 2.63L9.75 0.78C9.72 0.57 9.53 0.41 9.32 0.41H6.52C6.31 0.41 6.13 0.57 6.1 0.78L5.84 2.63C5.35 2.82 4.9 3.08 4.49 3.39L2.74 2.7C2.54 2.62 2.34 2.7 2.24 2.88L0.84 5.32C0.73 5.5 0.78 5.71 0.93 5.83L2.43 7C2.38 7.33 2.35 7.66 2.35 8C2.35 8.34 2.38 8.67 2.43 9L0.93 10.17C0.78 10.29 0.74 10.5 0.84 10.68L2.24 13.12C2.34 13.3 2.54 13.37 2.74 13.3L4.49 12.61C4.9 12.92 5.35 13.18 5.84 13.37L6.1 15.22C6.13 15.43 6.31 15.59 6.52 15.59H9.32C9.53 15.59 9.71 15.43 9.74 15.22L10 13.37C10.49 13.18 10.94 12.92 11.35 12.61L13.1 13.3C13.3 13.38 13.5 13.3 13.6 13.12L15 10.68C15.1 10.5 15.06 10.29 14.91 10.17L13.41 9C13.47 8.67 13.5 8.34 13.5 8Z"
         stroke="currentColor"
         strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function UpdateIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
+      <path
+        d="M7 2V8M7 8L4 5M7 8L10 5M2 10V11C2 11.5523 2.44772 12 3 12H11C11.5523 12 12 11.5523 12 11V10"
+        stroke="currentColor"
+        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

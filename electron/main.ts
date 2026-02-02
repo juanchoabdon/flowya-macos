@@ -6,9 +6,11 @@ import {
   screen,
   nativeTheme,
   nativeImage,
+  dialog,
 } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import { autoUpdater } from 'electron-updater';
 
 // Import liquid glass for native macOS glass effect
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -190,6 +192,11 @@ function createWindow(): void {
   mainWindow.on('focus', () => {
     mainWindow?.webContents.send('window:focus', true);
     mainWindow?.setOpacity(1.0);
+    
+    // Check for updates when window gains focus (if packaged and no update pending)
+    if (app.isPackaged && !updateDownloadedVersion) {
+      autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+    }
   });
 
   mainWindow.on('blur', () => {
@@ -312,6 +319,89 @@ function setupIPC(): void {
   });
 }
 
+// Auto-updater setup
+let updateDownloadedVersion: string | null = null;
+
+function setupAutoUpdater(): void {
+  // Don't check for updates in development
+  if (!app.isPackaged) {
+    console.log('Skipping auto-update in development mode');
+    return;
+  }
+
+  // Configure auto-updater
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  // Check for updates immediately
+  autoUpdater.checkForUpdatesAndNotify();
+  
+  // Check for updates every 30 minutes
+  setInterval(() => {
+    if (!updateDownloadedVersion) {
+      console.log('Checking for updates (periodic)...');
+      autoUpdater.checkForUpdatesAndNotify();
+    }
+  }, 30 * 60 * 1000); // 30 minutes
+
+  // Events
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for updates...');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('Update available:', info.version);
+    // Notify renderer
+    mainWindow?.webContents.send('updater:available', info.version);
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('No updates available');
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    console.log(`Download progress: ${Math.round(progress.percent)}%`);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('Update downloaded:', info.version);
+    updateDownloadedVersion = info.version;
+    
+    // Notify renderer
+    mainWindow?.webContents.send('updater:downloaded', info.version);
+    
+    // Show dialog with download link (since auto-install doesn't work without code signing)
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update Available',
+      message: `Version ${info.version} is available!`,
+      detail: 'Click "Download" to get the latest version.',
+      buttons: ['Download', 'Later'],
+      defaultId: 0,
+    }).then((result) => {
+      if (result.response === 0) {
+        // Open the releases page
+        require('electron').shell.openExternal(
+          `https://github.com/juanchoabdon/flowya-releases/releases/tag/v${info.version}`
+        );
+      }
+    });
+  });
+
+  autoUpdater.on('error', (error) => {
+    console.error('Auto-updater error:', error);
+  });
+  
+  // IPC handler to download update (opens browser)
+  ipcMain.handle('updater:install', () => {
+    if (updateDownloadedVersion) {
+      require('electron').shell.openExternal(
+        `https://github.com/juanchoabdon/flowya-releases/releases/tag/v${updateDownloadedVersion}`
+      );
+    }
+  });
+}
+
 // Register global hotkey
 function registerGlobalShortcut(): void {
   const shortcut = 'CommandOrControl+Shift+Space';
@@ -339,6 +429,7 @@ app.whenReady().then(() => {
   createWindow();
   setupIPC();
   registerGlobalShortcut();
+  setupAutoUpdater();
   
   // Set custom dock icon with delay, then re-apply floating
   setTimeout(() => {

@@ -37,6 +37,22 @@ const windowApi = {
     ipcRenderer.on('window:focus', handler);
     return () => ipcRenderer.removeListener('window:focus', handler);
   },
+  
+  // Auto-updater
+  installUpdate: (): Promise<void> =>
+    ipcRenderer.invoke('updater:install'),
+  
+  onUpdateAvailable: (callback: (version: string) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, version: string) => callback(version);
+    ipcRenderer.on('updater:available', handler);
+    return () => ipcRenderer.removeListener('updater:available', handler);
+  },
+  
+  onUpdateDownloaded: (callback: (version: string) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, version: string) => callback(version);
+    ipcRenderer.on('updater:downloaded', handler);
+    return () => ipcRenderer.removeListener('updater:downloaded', handler);
+  },
 };
 
 // Expose the API to the renderer process

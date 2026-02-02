@@ -66,6 +66,10 @@ export interface WindowApi {
   refreshDock: () => Promise<boolean>;
   getTheme: () => Promise<'dark' | 'light'>;
   onFocusChange: (callback: (focused: boolean) => void) => () => void;
+  // Auto-updater
+  installUpdate: () => Promise<void>;
+  onUpdateAvailable: (callback: (version: string) => void) => () => void;
+  onUpdateDownloaded: (callback: (version: string) => void) => () => void;
 }
 
 // Extend Window interface to include our API

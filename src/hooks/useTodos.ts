@@ -123,9 +123,8 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
     
     // Find the dragged item to get its status
     const draggedItem = todos.find(t => t.id === draggedId);
-    const targetItem = todos.find(t => t.id === targetId);
     
-    if (!draggedItem || !targetItem) return;
+    if (!draggedItem) return;
     
     // Only reorder within same status
     const status = draggedItem.status;
@@ -136,14 +135,35 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
       .sort((a, b) => a.position - b.position);
     
     const draggedIndex = statusTodos.findIndex(t => t.id === draggedId);
-    const targetIndex = statusTodos.findIndex(t => t.id === targetId);
     
-    if (draggedIndex === -1 || targetIndex === -1) return;
+    if (draggedIndex === -1) return;
+    
+    // Handle dropping at the end
+    const isEndDrop = targetId === '__end__';
+    let targetIndex: number;
+    
+    if (isEndDrop) {
+      // Move to the end
+      targetIndex = statusTodos.length - 1;
+      // If already at the end, nothing to do
+      if (draggedIndex === targetIndex) return;
+    } else {
+      const targetItem = todos.find(t => t.id === targetId);
+      if (!targetItem) return;
+      targetIndex = statusTodos.findIndex(t => t.id === targetId);
+      if (targetIndex === -1) return;
+    }
 
     // Reorder within the status group
     const newStatusTodos = [...statusTodos];
     const [removed] = newStatusTodos.splice(draggedIndex, 1);
-    newStatusTodos.splice(targetIndex, 0, removed);
+    
+    if (isEndDrop) {
+      // Push to the end
+      newStatusTodos.push(removed);
+    } else {
+      newStatusTodos.splice(targetIndex, 0, removed);
+    }
 
     // Update positions only for this status group
     const updatedStatusTodos = newStatusTodos.map((todo, index) => ({

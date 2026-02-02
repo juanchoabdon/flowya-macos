@@ -287,6 +287,7 @@ export default function App() {
         onUpdateSettings={updateSettings}
         onSignOut={signOut}
         userEmail={user?.email}
+        windowFocused={windowFocused}
       />
       
       <div className="main-content">
@@ -303,6 +304,7 @@ export default function App() {
               setDetailTodo(prev => prev ? { ...prev, status } : null);
             }}
             onClose={() => setDetailTodo(null)}
+            space={isAllView ? spaces.find(s => s.id === detailTodo.space_id) : undefined}
           />
         ) : (
           // Normal list view
@@ -331,6 +333,8 @@ export default function App() {
               onArchiveAllDone={archiveAllDone}
               onReorder={reorderTodos}
               showClearAll={filter === 'done'}
+              spaces={spaces}
+              isAllView={isAllView}
               emptyMessage={
                 filter === 'all'
                   ? 'No tasks yet. Add one below!'

@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import type { Todo, TaskStatus } from '../types';
+import type { Todo, TaskStatus, Space } from '../types';
 
 interface TodoDetailProps {
   todo: Todo;
   onUpdate: (id: string, updates: { text?: string; description?: string | null }) => void;
   onStatusChange: (id: string, status: TaskStatus) => void;
   onClose: () => void;
+  space?: Space; // Only provided in "All" view
 }
 
 const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bg: string }> = {
@@ -14,7 +15,7 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bg: stri
   done: { label: 'Done', color: '#30D158', bg: 'rgba(48, 209, 88, 0.2)' },
 };
 
-export function TodoDetail({ todo, onUpdate, onStatusChange, onClose }: TodoDetailProps) {
+export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space }: TodoDetailProps) {
   const [title, setTitle] = useState(todo.text);
   const [description, setDescription] = useState(todo.description || '');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -91,21 +92,35 @@ export function TodoDetail({ todo, onUpdate, onStatusChange, onClose }: TodoDeta
           <span>Back</span>
         </button>
         
-        <select
-          value={todo.status}
-          onChange={(e) => onStatusChange(todo.id, e.target.value as TaskStatus)}
-          style={{ 
-            color: currentStatus.color,
-            background: currentStatus.bg,
-          }}
-          className="status-select"
-        >
-          {(Object.keys(STATUS_CONFIG) as TaskStatus[]).map((status) => (
-            <option key={status} value={status}>
-              {STATUS_CONFIG[status].label}
-            </option>
-          ))}
-        </select>
+        <div className="todo-detail-header-right">
+          {space && (
+            <span 
+              className="space-label"
+              style={{ 
+                backgroundColor: `${space.color}25`,
+                color: space.color,
+                borderColor: `${space.color}40`,
+              }}
+            >
+              {space.name}
+            </span>
+          )}
+          <select
+            value={todo.status}
+            onChange={(e) => onStatusChange(todo.id, e.target.value as TaskStatus)}
+            style={{ 
+              color: currentStatus.color,
+              background: currentStatus.bg,
+            }}
+            className="status-select"
+          >
+            {(Object.keys(STATUS_CONFIG) as TaskStatus[]).map((status) => (
+              <option key={status} value={status}>
+                {STATUS_CONFIG[status].label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Content area */}
