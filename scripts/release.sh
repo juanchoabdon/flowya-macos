@@ -2,7 +2,7 @@
 
 # Flowya Release Script
 # Usage: ./scripts/release.sh [patch|minor|major]
-# Example: ./scripts/release.sh patch  # 1.0.7 -> 1.0.8
+# Example: ./scripts/release.sh patch  # 1.0.12 -> 1.0.13
 
 set -e
 
@@ -12,12 +12,33 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Check if GH_TOKEN is set
-if [ -z "$GH_TOKEN" ]; then
-    echo -e "${RED}Error: GH_TOKEN environment variable is not set${NC}"
-    echo "Please set it with: export GH_TOKEN=your_github_token"
+# ========================================
+# Load credentials from .env.release
+# ========================================
+if [ -f ".env.release" ]; then
+    source .env.release
+else
+    echo -e "${RED}Error: .env.release file not found${NC}"
+    echo "Create .env.release with:"
+    echo '  export GH_TOKEN="your_github_token"'
+    echo '  export APPLE_ID="your_apple_id"'
+    echo '  export APPLE_TEAM_ID="your_team_id"'
+    echo '  export APPLE_APP_SPECIFIC_PASSWORD="your_app_password"'
     exit 1
 fi
+
+# Verify required environment variables
+if [ -z "$GH_TOKEN" ]; then
+    echo -e "${RED}Error: GH_TOKEN not set in .env.release${NC}"
+    exit 1
+fi
+
+if [ -z "$APPLE_ID" ] || [ -z "$APPLE_TEAM_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
+    echo -e "${RED}Error: Apple credentials not set in .env.release${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Credentials loaded from .env.release${NC}"
 
 # Get bump type (default: patch)
 BUMP_TYPE=${1:-patch}
@@ -51,15 +72,16 @@ echo -e "${GREEN}New version: $NEW_VERSION${NC}"
 echo -e "${YELLOW}Updating package.json...${NC}"
 npm version $NEW_VERSION --no-git-tag-version
 
-# Build and publish
-echo -e "${YELLOW}Building and publishing to GitHub...${NC}"
+# Build, sign, notarize, and publish
+echo -e "${YELLOW}Building, signing, notarizing, and publishing to GitHub...${NC}"
+echo -e "${YELLOW}(This may take a few minutes for notarization)${NC}"
 npm run package -- --publish always
 
 # Wait for upload to complete
 echo -e "${YELLOW}Waiting for upload to complete...${NC}"
 sleep 5
 
-# Get the release ID (wait a bit for GitHub to process)
+# Get the release ID
 echo -e "${YELLOW}Getting release ID...${NC}"
 sleep 3
 
@@ -116,9 +138,10 @@ else
     echo -e "${RED}Warning: Could not verify release. Please check manually.${NC}"
 fi
 
-# Commit the version bump
-echo -e "${YELLOW}Committing version bump...${NC}"
+# Commit and push
+echo -e "${YELLOW}Committing and pushing...${NC}"
 git add package.json package-lock.json
 git commit -m "chore: bump version to $NEW_VERSION"
+git push origin main
 
-echo -e "${GREEN}Done! Don't forget to push: git push origin main${NC}"
+echo -e "${GREEN}🎉 Done! Release v$NEW_VERSION is live!${NC}"

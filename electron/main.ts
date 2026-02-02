@@ -370,20 +370,18 @@ function setupAutoUpdater(): void {
     // Notify renderer
     mainWindow?.webContents.send('updater:downloaded', info.version);
     
-    // Show dialog with download link (since auto-install doesn't work without code signing)
+    // Show dialog to restart and install
     dialog.showMessageBox({
       type: 'info',
-      title: 'Update Available',
-      message: `Version ${info.version} is available!`,
-      detail: 'Click "Download" to get the latest version.',
-      buttons: ['Download', 'Later'],
+      title: 'Update Ready',
+      message: `Version ${info.version} is ready to install`,
+      detail: 'Restart now to update to the latest version.',
+      buttons: ['Restart Now', 'Later'],
       defaultId: 0,
     }).then((result) => {
       if (result.response === 0) {
-        // Open the releases page
-        require('electron').shell.openExternal(
-          `https://github.com/juanchoabdon/flowya-releases/releases/tag/v${info.version}`
-        );
+        isQuitting = true;
+        autoUpdater.quitAndInstall(false, true);
       }
     });
   });
@@ -392,12 +390,11 @@ function setupAutoUpdater(): void {
     console.error('Auto-updater error:', error);
   });
   
-  // IPC handler to download update (opens browser)
+  // IPC handler to install update
   ipcMain.handle('updater:install', () => {
     if (updateDownloadedVersion) {
-      require('electron').shell.openExternal(
-        `https://github.com/juanchoabdon/flowya-releases/releases/tag/v${updateDownloadedVersion}`
-      );
+      isQuitting = true;
+      autoUpdater.quitAndInstall(false, true);
     }
   });
 }
