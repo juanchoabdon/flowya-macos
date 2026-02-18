@@ -108,6 +108,11 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 1
 fi
 
+# Commit any pending changes first
+echo -e "${YELLOW}Committing pending changes...${NC}"
+git add -A
+git commit -m "pre-release: pending changes for v$NEW_VERSION" || echo -e "${YELLOW}No pending changes${NC}"
+
 # Update package.json version
 echo -e "${YELLOW}Updating package.json...${NC}"
 npm version $NEW_VERSION --no-git-tag-version
@@ -219,8 +224,8 @@ else
     echo -e "${RED}Warning: Could not verify release. Please check manually.${NC}"
 fi
 
-# Commit and push everything
-echo -e "${YELLOW}Committing and pushing all changes...${NC}"
+# Commit version bump and push everything
+echo -e "${YELLOW}Committing version bump and pushing...${NC}"
 git add -A
 git commit -m "release: v$NEW_VERSION" || echo -e "${YELLOW}Nothing new to commit${NC}"
 git push origin main

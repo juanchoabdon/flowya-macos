@@ -213,7 +213,8 @@ export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spa
       setAISuggestionLoading(true);
       const profile = aiSetupComplete && aiRoles ? { roles: aiRoles, context: aiContext || '' } : null;
       const currentSpace = space || spaces?.find(s => s.id === todo.space_id);
-      suggestTaskName(todo.text, profile, currentSpace?.name).then(suggestion => {
+      const spaceRole = aiRoles && todo.space_id ? aiRoles[todo.space_id] : undefined;
+      suggestTaskName(todo.text, profile, currentSpace?.name, spaceRole).then(suggestion => {
         if (!cancelled) {
           setAISuggestion(suggestion);
           setAISuggestionLoading(false);

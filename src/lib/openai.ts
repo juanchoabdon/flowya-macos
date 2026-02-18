@@ -275,15 +275,23 @@ Rules:
   return parsed;
 }
 
-export async function suggestTaskName(taskName: string, profile?: AIProfile | null, spaceName?: string): Promise<string | null> {
+export async function suggestTaskName(taskName: string, profile?: AIProfile | null, spaceName?: string, spaceRole?: string): Promise<string | null> {
   if (!OPENAI_API_KEY) return null;
   if (!taskName || taskName.trim().length < 2) return null;
 
   let profileHint = '';
   if (profile) {
-    const roles = Object.values(profile.roles).filter(Boolean).join(', ');
-    profileHint = `\n\nThe user's roles: ${roles}.${profile.context ? ` Context: ${profile.context}` : ''}${spaceName ? ` This task is in the "${spaceName}" space.` : ''}
-Use this to make the suggestion contextually relevant to their life and work.`;
+    const roleParts: string[] = [];
+    if (spaceRole) {
+      roleParts.push(`The user is a "${spaceRole}" in the "${spaceName}" space.`);
+    } else if (spaceName) {
+      roleParts.push(`This task is in the "${spaceName}" space.`);
+    }
+    if (profile.context) {
+      roleParts.push(`Context: ${profile.context}`);
+    }
+    profileHint = `\n\n${roleParts.join(' ')}
+Use this to make the suggestion contextually relevant — write the task name as this person would naturally phrase it in their role.`;
   }
 
   const systemPrompt = `You are a task naming assistant for tech professionals. Given a task name, suggest a more actionable, concrete version.${profileHint}
