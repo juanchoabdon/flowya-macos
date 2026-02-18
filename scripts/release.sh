@@ -10,6 +10,7 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # ========================================
@@ -26,6 +27,10 @@ else
     echo '  export APPLE_APP_SPECIFIC_PASSWORD="your_app_password"'
     exit 1
 fi
+
+# Supabase credentials for changelog upload
+SUPABASE_URL="https://pgihkbilfkaxvabtsgyf.supabase.co"
+SUPABASE_SERVICE_KEY="REDACTED_OLD_SERVICE_KEY"
 
 # Verify required environment variables
 if [ -z "$GH_TOKEN" ]; then
@@ -68,9 +73,85 @@ esac
 
 echo -e "${GREEN}New version: $NEW_VERSION${NC}"
 
+# ========================================
+# Collect changelog notes
+# ========================================
+echo ""
+echo -e "${BLUE}📝 Enter changelog notes for v$NEW_VERSION${NC}"
+echo -e "${YELLOW}(Enter each change on a new line. Press Ctrl+D when done)${NC}"
+echo ""
+
+CHANGELOG_NOTES=()
+while IFS= read -r line; do
+    if [ -n "$line" ]; then
+        CHANGELOG_NOTES+=("$line")
+    fi
+done
+
+if [ ${#CHANGELOG_NOTES[@]} -eq 0 ]; then
+    echo -e "${RED}Error: No changelog notes provided${NC}"
+    exit 1
+fi
+
+echo ""
+echo -e "${GREEN}Changelog notes:${NC}"
+for note in "${CHANGELOG_NOTES[@]}"; do
+    echo "  • $note"
+done
+echo ""
+
+# Confirm
+read -p "Continue with release? (y/n) " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo -e "${RED}Release cancelled${NC}"
+    exit 1
+fi
+
 # Update package.json version
 echo -e "${YELLOW}Updating package.json...${NC}"
 npm version $NEW_VERSION --no-git-tag-version
+
+# ========================================
+# Upload changelog to Supabase
+# ========================================
+if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_SERVICE_KEY" ]; then
+    echo -e "${YELLOW}Uploading changelog to Supabase...${NC}"
+    
+    # Get current month and year
+    RELEASE_DATE=$(date +"%b %Y")
+    
+    # Build JSON array of changes
+    CHANGES_JSON="["
+    for i in "${!CHANGELOG_NOTES[@]}"; do
+        if [ $i -gt 0 ]; then
+            CHANGES_JSON+=","
+        fi
+        # Escape quotes in the note
+        ESCAPED_NOTE=$(echo "${CHANGELOG_NOTES[$i]}" | sed 's/"/\\"/g')
+        CHANGES_JSON+="\"$ESCAPED_NOTE\""
+    done
+    CHANGES_JSON+="]"
+    
+    # Insert into Supabase
+    RESPONSE=$(curl -s -X POST \
+        "${SUPABASE_URL}/rest/v1/changelogs" \
+        -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+        -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+        -H "Content-Type: application/json" \
+        -H "Prefer: return=minimal" \
+        -d "{\"version\": \"$NEW_VERSION\", \"date\": \"$RELEASE_DATE\", \"changes\": $CHANGES_JSON}" \
+        -w "%{http_code}" \
+        -o /dev/null)
+    
+    if [ "$RESPONSE" == "201" ]; then
+        echo -e "${GREEN}✓ Changelog uploaded to Supabase${NC}"
+    else
+        echo -e "${YELLOW}Warning: Could not upload changelog (HTTP $RESPONSE). Continuing...${NC}"
+    fi
+else
+    echo -e "${YELLOW}Skipping Supabase upload (credentials not configured)${NC}"
+fi
 
 # Build, sign, notarize, and publish
 echo -e "${YELLOW}Building, signing, notarizing, and publishing to GitHub...${NC}"
@@ -138,10 +219,10 @@ else
     echo -e "${RED}Warning: Could not verify release. Please check manually.${NC}"
 fi
 
-# Commit and push
-echo -e "${YELLOW}Committing and pushing...${NC}"
-git add package.json package-lock.json
-git commit -m "chore: bump version to $NEW_VERSION"
+# Commit and push everything
+echo -e "${YELLOW}Committing and pushing all changes...${NC}"
+git add -A
+git commit -m "release: v$NEW_VERSION" || echo -e "${YELLOW}Nothing new to commit${NC}"
 git push origin main
 
 echo -e "${GREEN}🎉 Done! Release v$NEW_VERSION is live!${NC}"

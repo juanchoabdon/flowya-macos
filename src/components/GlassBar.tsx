@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import type { Space, Settings } from '../types';
 import { SPACE_COLORS } from '../types';
 import { ALL_SPACES_ID } from '../hooks/useTodos';
+import { useHasUnseenUpdates } from './WhatsNewModal';
+import * as analytics from '../lib/analytics';
 
 interface GlassBarProps {
   spaces: Space[];
@@ -11,11 +13,19 @@ interface GlassBarProps {
   onCreateSpace: (name: string) => void;
   onUpdateSpace: (id: string, updates: Partial<Pick<Space, 'name' | 'color'>>) => void;
   onDeleteSpace: (id: string) => void;
+  onReorderSpaces: (fromIndex: number, toIndex: number) => void;
   settings: Settings | null;
   onUpdateSettings: (updates: Partial<Settings>) => void;
   onSignOut?: () => void;
   userEmail?: string;
   windowFocused?: boolean;
+  onOpenWhatsNew?: () => void;
+  onAIPrioritize?: () => void;
+  onEditAIProfile?: () => void;
+  aiProfileSetup?: boolean;
+  streakCount?: number;
+  streakActive?: boolean;
+  showFlame?: boolean;
 }
 
 export function GlassBar({
@@ -26,13 +36,22 @@ export function GlassBar({
   onCreateSpace,
   onUpdateSpace,
   onDeleteSpace,
+  onReorderSpaces,
   settings,
   onUpdateSettings,
   onSignOut,
   userEmail,
   windowFocused = true,
+  onOpenWhatsNew,
+  onAIPrioritize,
+  onEditAIProfile,
+  aiProfileSetup = false,
+  streakCount = 0,
+  streakActive = false,
+  showFlame = false,
 }: GlassBarProps) {
   const isAllSelected = selectedSpaceId === ALL_SPACES_ID;
+  const [hasUnseenUpdates, markUpdatesSeen] = useHasUnseenUpdates();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showNewSpaceInput, setShowNewSpaceInput] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState('');
@@ -41,6 +60,8 @@ export function GlassBar({
   const [showAllColorPicker, setShowAllColorPicker] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
+  const [draggedSpaceIndex, setDraggedSpaceIndex] = useState<number | null>(null);
+  const [dragOverSpaceIndex, setDragOverSpaceIndex] = useState<number | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const titleBarRef = useRef<HTMLDivElement>(null);
@@ -225,8 +246,25 @@ export function GlassBar({
               
               <div className="dropdown-divider" />
               
-              {spaces.map((space) => (
-                <div key={space.id}>
+              {spaces.map((space, index) => (
+                <div 
+                  key={space.id}
+                  draggable
+                  onDragStart={() => setDraggedSpaceIndex(index)}
+                  onDragEnd={() => {
+                    if (draggedSpaceIndex !== null && dragOverSpaceIndex !== null && draggedSpaceIndex !== dragOverSpaceIndex) {
+                      onReorderSpaces(draggedSpaceIndex, dragOverSpaceIndex);
+                    }
+                    setDraggedSpaceIndex(null);
+                    setDragOverSpaceIndex(null);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverSpaceIndex(index);
+                  }}
+                  onDragLeave={() => setDragOverSpaceIndex(null)}
+                  className={`space-drag-item ${draggedSpaceIndex === index ? 'dragging' : ''} ${dragOverSpaceIndex === index ? 'drag-over' : ''}`}
+                >
                   <div
                     className={`dropdown-item ${!isAllSelected && space.id === selectedSpace?.id ? 'selected' : ''}`}
                     onClick={() => {
@@ -234,6 +272,7 @@ export function GlassBar({
                       setDropdownOpen(false);
                     }}
                   >
+                    <span className="drag-handle">⋮⋮</span>
                     <button
                       className="color-dot"
                       style={{ background: space.color || '#C7CEEA' }}
@@ -313,12 +352,58 @@ export function GlassBar({
                 </div>
               )}
               
-                          </div>
+                        </div>
           )}
         </div>
+        
+        {/* Streak indicator */}
+        {streakActive && (
+          <div className={`streak-indicator ${showFlame ? 'flame-burst' : ''}`}>
+            <span className="streak-fire">🔥</span>
+            <span className="streak-count">{streakCount}</span>
+            <div className="streak-tooltip">
+              <div className="streak-tooltip-header">
+                <span className="streak-tooltip-fire">🔥</span>
+                <span className="streak-tooltip-title">Streak x{streakCount}!</span>
+              </div>
+              <p className="streak-tooltip-desc">
+                {streakCount} tasks completed within 30 min each. Keep the momentum going!
+              </p>
+              <div className="streak-tooltip-bar">
+                <div className="streak-tooltip-bar-fill" style={{ width: `${Math.min(streakCount / 10 * 100, 100)}%` }} />
+              </div>
+              <span className="streak-tooltip-goal">
+                {streakCount >= 10 ? '🏆 Legendary streak!' : streakCount >= 5 ? '⭐ Amazing! Next: 10' : `Next milestone: ${streakCount < 5 ? 5 : 10}`}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
       
       <div className="title-bar-right">
+        {/* AI Prioritize button */}
+        <button
+          className="icon-btn ai-btn"
+          onClick={() => onAIPrioritize?.()}
+        >
+          <AISparkleIcon />
+          <span className="ai-tooltip">AI Boost</span>
+        </button>
+
+        {/* What's New button */}
+        <button 
+          className={`icon-btn info-btn ${hasUnseenUpdates ? 'has-badge' : ''}`}
+          onClick={() => {
+            analytics.trackViewWhatsNew();
+            markUpdatesSeen();
+            onOpenWhatsNew?.();
+          }}
+          title="What's New"
+        >
+          <InfoIcon />
+          {hasUnseenUpdates && <span className="info-badge" />}
+        </button>
+        
         <div className="dropdown" ref={accountMenuRef}>
           <button 
             className={`icon-btn account-btn ${updateAvailable ? 'has-update' : ''}`}
@@ -344,6 +429,30 @@ export function GlassBar({
               
               <div className="dropdown-divider" />
               
+              <div
+                className="dropdown-item"
+                onClick={() => {
+                  window.windowApi?.resetWindowToDefault();
+                  setAccountMenuOpen(false);
+                }}
+              >
+                <ResizeIcon size={14} />
+                <span>Reset Size</span>
+              </div>
+
+              {aiProfileSetup && onEditAIProfile && (
+                <div
+                  className="dropdown-item"
+                  onClick={() => {
+                    onEditAIProfile();
+                    setAccountMenuOpen(false);
+                  }}
+                >
+                  <AIProfileIcon size={14} />
+                  <span>Edit AI Profile</span>
+                </div>
+              )}
+              
               {onSignOut && (
                 <div
                   className="dropdown-item danger"
@@ -356,6 +465,16 @@ export function GlassBar({
                   <span>Sign Out</span>
                 </div>
               )}
+              
+              <div
+                className="dropdown-item"
+                onClick={() => {
+                  window.windowApi?.quitApp();
+                }}
+              >
+                <QuitIcon size={14} />
+                <span>Quit App</span>
+              </div>
               
               <div className="dropdown-divider" />
               
@@ -468,6 +587,82 @@ function UpdateIcon({ size = 14 }: { size?: number }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function QuitIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
+      <path
+        d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function AIProfileIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
+      <path
+        d="M7 1L8.2 4.8L12 6L8.2 7.2L7 11L5.8 7.2L2 6L5.8 4.8L7 1Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="11" cy="2.5" r="1" stroke="currentColor" strokeWidth="0.8" />
+    </svg>
+  );
+}
+
+function ResizeIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
+      <path
+        d="M2 5V2H5M9 2H12V5M12 9V12H9M5 12H2V9"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3"/>
+      <path d="M8 7V11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="8" cy="5" r="0.75" fill="currentColor"/>
+    </svg>
+  );
+}
+
+function AISparkleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="ai-sparkle-svg">
+      <defs>
+        <linearGradient id="aiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#FFD54F">
+            <animate attributeName="stop-color" values="#FFD54F;#FF6B9D;#4FC3F7;#81C784;#FFD54F" dur="3s" repeatCount="indefinite"/>
+          </stop>
+          <stop offset="50%" stopColor="#FF6B9D">
+            <animate attributeName="stop-color" values="#FF6B9D;#4FC3F7;#81C784;#FFD54F;#FF6B9D" dur="3s" repeatCount="indefinite"/>
+          </stop>
+          <stop offset="100%" stopColor="#4FC3F7">
+            <animate attributeName="stop-color" values="#4FC3F7;#81C784;#FFD54F;#FF6B9D;#4FC3F7" dur="3s" repeatCount="indefinite"/>
+          </stop>
+        </linearGradient>
+      </defs>
+      <path d="M8 1L9.5 5.5L14 7L9.5 8.5L8 13L6.5 8.5L2 7L6.5 5.5L8 1Z" fill="url(#aiGrad)" stroke="url(#aiGrad)" strokeWidth="0.5" strokeLinejoin="round"/>
+      <circle cx="13" cy="3" r="1.2" fill="url(#aiGrad)" className="ai-sparkle-dot1"/>
+      <circle cx="3" cy="12" r="1" fill="url(#aiGrad)" className="ai-sparkle-dot2"/>
     </svg>
   );
 }

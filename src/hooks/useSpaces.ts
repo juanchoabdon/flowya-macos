@@ -9,6 +9,7 @@ interface UseSpacesReturn {
   createSpace: (name: string) => Promise<Space | null>;
   updateSpace: (id: string, updates: Partial<Pick<Space, 'name' | 'color'>>) => Promise<Space | null>;
   deleteSpace: (id: string) => Promise<boolean>;
+  reorderSpaces: (fromIndex: number, toIndex: number) => Promise<void>;
   refetch: () => Promise<void>;
 }
 
@@ -82,6 +83,30 @@ export function useSpaces(userId?: string): UseSpacesReturn {
     }
   }, [fetchSpaces]);
 
+  const reorderSpaces = useCallback(async (fromIndex: number, toIndex: number): Promise<void> => {
+    if (fromIndex === toIndex) return;
+    
+    // Optimistic update
+    setSpaces(prev => {
+      const newSpaces = [...prev];
+      const [removed] = newSpaces.splice(fromIndex, 1);
+      newSpaces.splice(toIndex, 0, removed);
+      return newSpaces.map((s, i) => ({ ...s, position: i }));
+    });
+    
+    try {
+      // Get the new order of IDs
+      const currentSpaces = [...spaces];
+      const [removed] = currentSpaces.splice(fromIndex, 1);
+      currentSpaces.splice(toIndex, 0, removed);
+      await api.reorderSpaces(currentSpaces.map(s => s.id));
+    } catch (err) {
+      // Revert on error
+      fetchSpaces();
+      setError(err instanceof Error ? err : new Error('Failed to reorder spaces'));
+    }
+  }, [spaces, fetchSpaces]);
+
   return {
     spaces,
     loading,
@@ -89,6 +114,7 @@ export function useSpaces(userId?: string): UseSpacesReturn {
     createSpace,
     updateSpace,
     deleteSpace,
+    reorderSpaces,
     refetch: fetchSpaces,
   };
 }

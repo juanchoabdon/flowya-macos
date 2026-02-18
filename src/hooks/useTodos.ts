@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Todo } from '../types';
 import * as api from '../lib/supabase';
 
@@ -9,9 +9,9 @@ interface UseTodosReturn {
   todos: Todo[];
   loading: boolean;
   error: Error | null;
-  createTodo: (text: string) => Promise<Todo | null>;
-  updateTodo: (id: string, updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position'>>) => Promise<Todo | null>;
-  deleteTodo: (id: string) => Promise<boolean>;
+  createTodo: (text: string, overrideSpaceId?: string) => Promise<Todo | null>;
+  updateTodo: (id: string, updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position' | 'priority' | 'due_date' | 'space_id'>>) => Promise<Todo | null>;
+  unarchiveTodo: (id: string) => Promise<boolean>;
   archiveTodo: (id: string) => Promise<boolean>;
   archiveAllDone: () => Promise<boolean>;
   reorderTodos: (draggedId: string, targetId: string) => Promise<void>;
@@ -26,6 +26,8 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
   
   const isAllView = spaceId === ALL_SPACES_ID;
 
+  const isInitialLoad = useRef(true);
+
   const fetchTodos = useCallback(async () => {
     if (!spaceId || !userId) {
       setTodos([]);
@@ -34,13 +36,15 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
     }
 
     try {
-      setLoading(true);
-      // Fetch all todos if "all" view, otherwise fetch for specific space
+      if (isInitialLoad.current) {
+        setLoading(true);
+      }
       const data = isAllView 
         ? await api.getAllTodos()
         : await api.getTodos(spaceId);
       setTodos(data);
       setError(null);
+      isInitialLoad.current = false;
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch todos'));
     } finally {
@@ -49,15 +53,16 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
   }, [spaceId, isAllView, userId]);
 
   useEffect(() => {
+    isInitialLoad.current = true;
     fetchTodos();
   }, [fetchTodos]);
 
-  const createTodo = useCallback(async (text: string): Promise<Todo | null> => {
-    // Can't create todos in "all" view - need a specific space
-    if (!spaceId || isAllView) return null;
+  const createTodo = useCallback(async (text: string, overrideSpaceId?: string): Promise<Todo | null> => {
+    const targetSpaceId = overrideSpaceId || spaceId;
+    if (!targetSpaceId || (isAllView && !overrideSpaceId)) return null;
 
     try {
-      const newTodo = await api.createTodo(spaceId, text);
+      const newTodo = await api.createTodo(targetSpaceId, text);
       // Optimistic update - add to top
       setTodos(prev => [newTodo, ...prev]);
       return newTodo;
@@ -69,7 +74,7 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
 
   const updateTodo = useCallback(async (
     id: string,
-    updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position'>>
+    updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position' | 'priority' | 'due_date' | 'space_id'>>
   ): Promise<Todo | null> => {
     try {
       const currentTodo = todos.find(t => t.id === id);
@@ -189,16 +194,13 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
     }
   }, [todos, fetchTodos]);
 
-  const deleteTodo = useCallback(async (id: string): Promise<boolean> => {
+  const unarchiveTodo = useCallback(async (id: string): Promise<boolean> => {
     try {
-      // Optimistic update
-      setTodos(prev => prev.filter(t => t.id !== id));
-      await api.deleteTodo(id);
+      await api.unarchiveTodo(id);
+      await fetchTodos();
       return true;
     } catch (err) {
-      // Revert on error
-      fetchTodos();
-      setError(err instanceof Error ? err : new Error('Failed to delete todo'));
+      setError(err instanceof Error ? err : new Error('Failed to unarchive todo'));
       return false;
     }
   }, [fetchTodos]);
@@ -237,7 +239,7 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
     error,
     createTodo,
     updateTodo,
-    deleteTodo,
+    unarchiveTodo,
     archiveTodo,
     archiveAllDone,
     reorderTodos,

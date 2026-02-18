@@ -17,6 +17,21 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bg: stri
   done: { label: 'Done', color: '#30D158', bg: 'rgba(48, 209, 88, 0.2)' },
 };
 
+// Parse due date handling various Supabase timestamp formats
+const parseDueDate = (dueDate: string): Date => {
+  let dateStr = dueDate;
+  
+  // If it doesn't end with Z and doesn't have timezone offset, treat as UTC
+  if (!dateStr.endsWith('Z') && !dateStr.match(/[+-]\d{2}:\d{2}$/) && !dateStr.match(/[+-]\d{2}$/)) {
+    dateStr = dateStr + 'Z';
+  }
+  
+  // Replace space with T if needed for ISO format
+  dateStr = dateStr.replace(' ', 'T');
+  
+  return new Date(dateStr);
+};
+
 export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, onOpenDetail, space }: TodoItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(todo.text);
@@ -76,16 +91,38 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
 
   const currentStatus = STATUS_CONFIG[todo.status];
 
+  // Get urgency class based on due date
+  const getUrgencyClass = () => {
+    if (!todo.due_date || todo.status === 'done') return '';
+    
+    const now = new Date();
+    const due = parseDueDate(todo.due_date);
+    const diffMs = due.getTime() - now.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    
+    if (diffMs < 0) return 'overdue';
+    if (diffHours <= 1) return 'due-soon';
+    return '';
+  };
+
+  const urgencyClass = getUrgencyClass();
+
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('taskId', todo.id);
     e.dataTransfer.effectAllowed = 'move';
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowStatusMenu(true);
+  };
+
   return (
     <div 
-      className={`todo-item ${todo.status === 'done' ? 'completed' : ''} ${celebrating ? 'celebrating' : ''}`}
+      className={`todo-item ${todo.status === 'done' ? 'completed' : ''} ${celebrating ? 'celebrating' : ''} ${urgencyClass}`}
       draggable
       onDragStart={handleDragStart}
+      onContextMenu={handleContextMenu}
     >
       {/* Celebration particles */}
       {celebrating && (
@@ -109,8 +146,16 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
           onClick={() => setShowStatusMenu(!showStatusMenu)}
         >
           {todo.status === 'done' && <CheckIcon />}
-          {todo.status === 'in_progress' && <ProgressIcon />}
-          {todo.status === 'backlog' && <CircleIcon />}
+          {todo.status === 'in_progress' && (
+            urgencyClass === 'overdue' ? <ClockAlertIcon color="#FF453A" /> :
+            urgencyClass === 'due-soon' ? <ClockAlertIcon color="#FFCC00" /> :
+            <ProgressIcon />
+          )}
+          {todo.status === 'backlog' && (
+            urgencyClass === 'overdue' ? <ClockAlertIcon color="#FF453A" /> :
+            urgencyClass === 'due-soon' ? <ClockAlertIcon color="#FFCC00" /> :
+            <CircleIcon />
+          )}
         </button>
         
         {showStatusMenu && (
@@ -150,9 +195,14 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
         ) : (
           <div className="todo-text-wrapper">
             <span className="todo-text">
+              {todo.priority && todo.priority !== 'P1' && (
+                <span className={`priority-badge priority-${todo.priority.toLowerCase()}`}>
+                  {todo.priority}
+                </span>
+              )}
               {todo.text}
             </span>
-            {todo.description && (
+            {todo.description && todo.description.replace(/<[^>]*>/g, '').trim() && (
               <NoteIcon />
             )}
             {space && (
@@ -175,7 +225,7 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
         {todo.status !== 'done' && (
           <button
             className="todo-action-btn"
-            onClick={() => setIsEditing(true)}
+            onClick={() => onOpenDetail(todo)}
             title="Edit"
           >
             <EditIcon />
@@ -222,6 +272,15 @@ function ProgressIcon() {
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
       <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" fill="none" />
       <path d="M6 1 A5 5 0 0 1 6 11" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ClockAlertIcon({ color }: { color: string }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <circle cx="6" cy="6" r="5" stroke={color} strokeWidth="1.5" fill="none" />
+      <path d="M6 3V6L8 7" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

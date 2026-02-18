@@ -4,6 +4,7 @@ export interface Space {
   user_id: string;
   name: string;
   color: string;
+  position: number;
   created_at: string;
 }
 
@@ -28,12 +29,17 @@ export const SPACE_COLORS = [
 // Task status type
 export type TaskStatus = 'backlog' | 'in_progress' | 'done';
 
+// Priority type
+export type Priority = 'P0' | 'P1' | 'P2' | 'P3';
+
 export interface Todo {
   id: string;
   space_id: string;
   text: string;
   description: string | null;
   status: TaskStatus;
+  priority: Priority;
+  due_date: string | null;  // ISO date string for deadline
   position: number;
   created_at: string;
   started_at: string | null;  // When moved to in_progress
@@ -50,6 +56,37 @@ export interface Settings {
   last_selected_space: string | null;
   all_spaces_color: string | null;
   nickname: string | null;
+  ai_roles: Record<string, string> | null;
+  ai_context: string | null;
+  ai_setup_complete: boolean;
+}
+
+// AI Prioritization types
+export interface AIRecommendation {
+  todoId: string;
+  rank: number;
+  newPriority: Priority;
+  newDueDate?: string | null;
+  rationale: string;
+  action: 'keep' | 'archive';
+}
+
+export interface AIAnalysisResult {
+  recommendations: AIRecommendation[];
+  summary: string;
+}
+
+// AI Rename types
+export interface AIRenameSuggestion {
+  todoId: string;
+  currentName: string;
+  newName: string;
+  rationale: string;
+}
+
+export interface AIRenameResult {
+  suggestions: AIRenameSuggestion[];
+  summary: string;
 }
 
 // Filter types
@@ -64,6 +101,11 @@ export interface WindowApi {
   toggleVisibility: () => Promise<boolean>;
   setMinimized: (minimized: boolean) => Promise<boolean>;
   refreshDock: () => Promise<boolean>;
+  quitApp: () => Promise<void>;
+  openExternal: (url: string) => Promise<void>;
+  aiChat: (payload: { apiKey: string; model: string; messages: Array<{ role: string; content: string }>; temperature: number }) => Promise<{ error: boolean; data?: unknown; status?: number; body?: string }>;
+  resizeWindow: (width: number, height: number) => Promise<boolean>;
+  resetWindowToDefault: () => Promise<boolean>;
   getTheme: () => Promise<'dark' | 'light'>;
   onFocusChange: (callback: (focused: boolean) => void) => () => void;
   // Auto-updater

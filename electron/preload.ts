@@ -27,6 +27,22 @@ const windowApi = {
   refreshDock: (): Promise<boolean> =>
     ipcRenderer.invoke('window:refreshDock'),
   
+  // Quit app
+  quitApp: (): Promise<void> =>
+    ipcRenderer.invoke('app:quit'),
+  
+  // Open external URL in system browser
+  openExternal: (url: string): Promise<void> =>
+    ipcRenderer.invoke('shell:openExternal', url),
+  
+  // Resize window
+  resizeWindow: (width: number, height: number): Promise<boolean> =>
+    ipcRenderer.invoke('window:resize', width, height),
+  
+  // Reset window to default size and position
+  resetWindowToDefault: (): Promise<boolean> =>
+    ipcRenderer.invoke('window:resetToDefault'),
+  
   // System info
   getTheme: (): Promise<'dark' | 'light'> => 
     ipcRenderer.invoke('system:getTheme'),
@@ -53,6 +69,10 @@ const windowApi = {
     ipcRenderer.on('updater:downloaded', handler);
     return () => ipcRenderer.removeListener('updater:downloaded', handler);
   },
+  
+  // AI - proxy OpenAI calls through main process
+  aiChat: (payload: { apiKey: string; model: string; messages: Array<{ role: string; content: string }>; temperature: number }): Promise<{ error: boolean; data?: unknown; status?: number; body?: string }> =>
+    ipcRenderer.invoke('ai:chat', payload),
 };
 
 // Expose the API to the renderer process

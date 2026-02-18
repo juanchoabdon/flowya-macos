@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import type { Todo, TaskStatus, Space } from '../types';
+import type { Todo, TaskStatus, Space, Priority } from '../types';
 import { TodoItem } from './TodoItem';
 
 function EmptyIcon() {
@@ -45,7 +45,7 @@ interface TodoListProps {
   todos: Todo[];
   loading: boolean;
   onStatusChange: (id: string, status: TaskStatus) => void;
-  onUpdate: (id: string, updates: { text?: string; description?: string | null }) => void;
+  onUpdate: (id: string, updates: { text?: string; description?: string | null; priority?: Priority }) => Promise<void> | void;
   onDelete: (id: string) => void;
   onArchive: (id: string) => void;
   onOpenDetail: (todo: Todo) => void;
@@ -55,6 +55,12 @@ interface TodoListProps {
   showClearAll?: boolean;
   spaces?: Space[];
   isAllView?: boolean;
+}
+
+interface P0ConfirmModal {
+  draggedId: string;
+  targetId: string;
+  draggedText: string;
 }
 
 export function TodoList({
@@ -74,6 +80,7 @@ export function TodoList({
 }: TodoListProps) {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [p0Modal, setP0Modal] = useState<P0ConfirmModal | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const scrollIntervalRef = useRef<number | null>(null);
 
@@ -149,8 +156,46 @@ export function TodoList({
     
     const draggedId = e.dataTransfer.getData('taskId');
     if (draggedId && draggedId !== targetId) {
-      onReorder(draggedId, targetId);
+      const draggedTodo = todos.find(t => t.id === draggedId);
+      const targetTodo = todos.find(t => t.id === targetId);
+      
+      // Check if dropping non-P0 above a P0 task
+      if (draggedTodo && targetTodo && 
+          targetTodo.priority === 'P0' && 
+          draggedTodo.priority !== 'P0') {
+        // Show confirmation modal
+        setP0Modal({
+          draggedId,
+          targetId,
+          draggedText: draggedTodo.text.length > 30 
+            ? draggedTodo.text.substring(0, 30) + '...' 
+            : draggedTodo.text
+        });
+      } else {
+        onReorder(draggedId, targetId);
+      }
     }
+  };
+  
+  const handleP0Confirm = async (makeP0: boolean) => {
+    if (!p0Modal) return;
+    
+    const { draggedId, targetId } = p0Modal;
+    setP0Modal(null);
+    
+    // First reorder
+    onReorder(draggedId, targetId);
+    
+    // Then update priority (with small delay to ensure state is updated)
+    if (makeP0) {
+      setTimeout(() => {
+        onUpdate(draggedId, { priority: 'P0' as Priority });
+      }, 50);
+    }
+  };
+  
+  const handleP0Cancel = () => {
+    setP0Modal(null);
   };
 
   const handleDragEnter = () => {
@@ -168,6 +213,37 @@ export function TodoList({
 
   return (
     <div className="todo-list-wrapper">
+      {/* P0 Confirmation Modal */}
+      {p0Modal && (
+        <div className="p0-modal-overlay" onClick={handleP0Cancel}>
+          <div className="p0-modal" onClick={e => e.stopPropagation()}>
+            <p className="p0-modal-text">
+              Moving "<strong>{p0Modal.draggedText}</strong>" above P0 tasks
+            </p>
+            <div className="p0-modal-actions">
+              <button 
+                className="p0-modal-btn p0-btn"
+                onClick={() => handleP0Confirm(true)}
+              >
+                Make it P0
+              </button>
+              <button 
+                className="p0-modal-btn move-btn"
+                onClick={() => handleP0Confirm(false)}
+              >
+                Just move
+              </button>
+              <button 
+                className="p0-modal-btn cancel-btn"
+                onClick={handleP0Cancel}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {loading ? (
         <div className="todo-list-center">
           <div className="spinner" />

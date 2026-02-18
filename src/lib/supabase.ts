@@ -21,6 +21,7 @@ export async function getSpaces(): Promise<Space[]> {
   const { data, error } = await supabase
     .from('spaces')
     .select('*')
+    .order('position', { ascending: true })
     .order('created_at', { ascending: true });
   
   if (error) {
@@ -34,9 +35,19 @@ export async function createSpace(name: string, userId: string): Promise<Space> 
   // Pick a random pastel color
   const randomColor = SPACE_COLORS[Math.floor(Math.random() * SPACE_COLORS.length)];
   
+  // Get the max position to add at the end
+  const { data: existing } = await supabase
+    .from('spaces')
+    .select('position')
+    .eq('user_id', userId)
+    .order('position', { ascending: false })
+    .limit(1);
+  
+  const maxPosition = existing?.[0]?.position ?? -1;
+  
   const { data, error } = await supabase
     .from('spaces')
-    .insert({ name, color: randomColor, user_id: userId })
+    .insert({ name, color: randomColor, user_id: userId, position: maxPosition + 1 })
     .select()
     .single();
   
@@ -47,7 +58,7 @@ export async function createSpace(name: string, userId: string): Promise<Space> 
   return data;
 }
 
-export async function updateSpace(id: string, updates: Partial<Pick<Space, 'name' | 'color'>>): Promise<Space> {
+export async function updateSpace(id: string, updates: Partial<Pick<Space, 'name' | 'color' | 'position'>>): Promise<Space> {
   const { data, error } = await supabase
     .from('spaces')
     .update(updates)
@@ -60,6 +71,18 @@ export async function updateSpace(id: string, updates: Partial<Pick<Space, 'name
     throw error;
   }
   return data;
+}
+
+export async function reorderSpaces(spaceIds: string[]): Promise<void> {
+  // Update positions for all spaces in the new order
+  const updates = spaceIds.map((id, index) => 
+    supabase
+      .from('spaces')
+      .update({ position: index })
+      .eq('id', id)
+  );
+  
+  await Promise.all(updates);
 }
 
 export async function deleteSpace(id: string): Promise<void> {
@@ -141,7 +164,7 @@ export async function createTodo(spaceId: string, text: string): Promise<Todo> {
 
 export async function updateTodo(
   id: string,
-  updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position'>>
+  updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position' | 'priority' | 'due_date' | 'space_id'>>
 ): Promise<Todo> {
   const updateData: Record<string, unknown> = { ...updates };
   
@@ -197,6 +220,18 @@ export async function deleteTodo(id: string): Promise<void> {
   
   if (error) {
     console.error('Error deleting todo:', error);
+    throw error;
+  }
+}
+
+export async function unarchiveTodo(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('todos')
+    .update({ archived: false })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error unarchiving todo:', error);
     throw error;
   }
 }
@@ -326,4 +361,30 @@ export async function updateSettings(
     }
     return data;
   }
+}
+
+// ============================================
+// Changelogs
+// ============================================
+
+export interface Changelog {
+  id: string;
+  version: string;
+  date: string;
+  changes: string[];
+  created_at: string;
+}
+
+export async function getChangelogs(): Promise<Changelog[]> {
+  const { data, error } = await supabase
+    .from('changelogs')
+    .select('*')
+    .order('created_at', { ascending: false });
+  
+  if (error) {
+    console.error('Error fetching changelogs:', error);
+    return [];
+  }
+  
+  return data || [];
 }

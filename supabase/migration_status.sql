@@ -155,3 +155,88 @@ UPDATE settings SET user_id = '2f03d9aa-2019-4094-a827-f249854a9bfb' WHERE user_
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS nickname TEXT DEFAULT NULL;
 
 -- Done! Users can now set a nickname
+
+-- ============================================
+-- Migration: Add priority column to todos
+-- ============================================
+
+-- Step 21: Add priority column to todos (P0, P1, P2, P3 - default P1)
+ALTER TABLE todos ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'P1';
+
+-- Step 22: Add constraint for valid priority values (skip if exists)
+DO $$ BEGIN
+  ALTER TABLE todos ADD CONSTRAINT todos_priority_check 
+    CHECK (priority IN ('P0', 'P1', 'P2', 'P3'));
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Done! Todos now support priority levels
+
+-- ============================================
+-- Migration: Add due_date column to todos
+-- ============================================
+
+-- Step 23: Add due_date column to todos (timestamp for hour precision)
+ALTER TABLE todos ADD COLUMN IF NOT EXISTS due_date TIMESTAMPTZ DEFAULT NULL;
+
+-- Done! Todos now support due dates / deadlines with hour precision
+
+-- ============================================
+-- Migration: Add changelogs table for What's New
+-- ============================================
+
+-- Step 24: Create changelogs table
+CREATE TABLE IF NOT EXISTS changelogs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  version TEXT NOT NULL UNIQUE,
+  date TEXT NOT NULL,
+  changes TEXT[] NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Step 25: Allow public read access to changelogs (no auth required)
+ALTER TABLE changelogs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read changelogs" ON changelogs
+  FOR SELECT USING (true);
+
+-- Step 26: Insert initial changelog data
+INSERT INTO changelogs (version, date, changes) VALUES
+  ('1.0.22', 'Feb 2026', ARRAY[
+    'Added ETA/deadlines with visual urgency indicators (yellow/red)',
+    'Priority system (P0-P3) with smart auto-positioning',
+    'Confirmation modal when moving tasks above P0',
+    'Priority filter in Backlog and In Progress views',
+    'Rich text editor for task descriptions (links, bullets)',
+    'Archive tasks with undo support (⌘+Z)',
+    'What''s New & Tips panel'
+  ]),
+  ('1.0.15', 'Jan 2026', ARRAY[
+    'Drag & drop task reordering',
+    'Multiple workspaces with colors',
+    'Task descriptions with notes',
+    'Improved glassmorphism UI'
+  ]),
+  ('1.0.0', 'Dec 2025', ARRAY[
+    'Initial release',
+    'Kanban workflow: Backlog → In Progress → Done',
+    'Floating always-on-top window',
+    'Global hotkey ⌘+⇧+Space'
+  ])
+ON CONFLICT (version) DO NOTHING;
+
+-- Step 27: Insert 1.0.37 changelog
+INSERT INTO changelogs (version, date, changes) VALUES
+  ('1.0.37', 'Feb 2026', ARRAY[
+    'AI Boost Hub — new entry point for all AI features',
+    'Sharpen Task Names — AI rewrites vague tasks into clear actions',
+    'Inline AI suggestions when opening any task',
+    'AI now considers your roles and context for smarter suggestions',
+    'P0 and overdue tasks auto-sort to the top',
+    'Confirmation modal when dragging tasks above P0',
+    'Smart ETA rescheduling for overdue tasks during AI prioritization'
+  ])
+ON CONFLICT (version) DO NOTHING;
+
+-- Done! Changelogs table created

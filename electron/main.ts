@@ -7,10 +7,15 @@ import {
   nativeTheme,
   nativeImage,
   dialog,
+  shell,
 } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { autoUpdater } from 'electron-updater';
+
+// Disable Chromium's swipe navigation to prevent macOS space switching
+app.commandLine.appendSwitch('disable-features', 'TouchpadOverscrollHistoryNavigation');
+app.commandLine.appendSwitch('overscroll-history-navigation', '0');
 
 // Import liquid glass for native macOS glass effect
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -88,8 +93,8 @@ function createWindow(): void {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
 
   // Default position: top-right corner with some padding
-  const defaultWidth = 320;
-  const defaultHeight = 520;
+  const defaultWidth = 350;
+  const defaultHeight = 340;
   const defaultX = screenWidth - defaultWidth - 20;
   const defaultY = 60;
 
@@ -117,6 +122,9 @@ function createWindow(): void {
     hasShadow: true,
     roundedCorners: true,
     
+    // macOS click behavior - accept clicks without stealing focus from Split View
+    acceptFirstMouse: true,
+    
     // Security
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -129,8 +137,27 @@ function createWindow(): void {
   // Show window buttons (required for liquid glass)
   mainWindow.setWindowButtonVisibility(true);
 
-  // Set visible on all workspaces
+  // Set Content Security Policy to allow Amplitude and fonts
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+          "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+          "font-src 'self' https://fonts.gstatic.com data:; " +
+          "connect-src 'self' https://*.amplitude.com https://*.supabase.co wss://*.supabase.co; " +
+          "img-src 'self' data: blob:;"
+        ]
+      }
+    });
+  });
+
+  // Configure as floating utility window
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  mainWindow.setAlwaysOnTop(true, 'floating', 1);
 
   // Load the app
   if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
@@ -141,6 +168,23 @@ function createWindow(): void {
     // In packaged app, __dirname is dist-electron/electron/, so we need ../../dist
     mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
   }
+
+  // Prevent navigation to external URLs - open in system browser instead
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    // Allow navigation to localhost (dev server) and file:// (production)
+    if (!url.startsWith('http://localhost') && !url.startsWith('file://')) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
+
+  // Prevent new windows from opening - open in system browser instead
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
 
   // Apply native Liquid Glass effect after content loads
   mainWindow.webContents.once('did-finish-load', () => {
@@ -193,6 +237,9 @@ function createWindow(): void {
     mainWindow?.webContents.send('window:focus', true);
     mainWindow?.setOpacity(1.0);
     
+    // Re-ensure floating level on focus to prevent space switching
+    mainWindow?.setAlwaysOnTop(true, 'floating', 1);
+    
     // Check for updates when window gains focus (if packaged and no update pending)
     if (app.isPackaged && !updateDownloadedVersion) {
       autoUpdater.checkForUpdatesAndNotify().catch(() => {});
@@ -202,6 +249,9 @@ function createWindow(): void {
   mainWindow.on('blur', () => {
     mainWindow?.webContents.send('window:focus', false);
     mainWindow?.setOpacity(0.5);
+    
+    // Re-ensure floating level on blur  
+    mainWindow?.setAlwaysOnTop(true, 'floating', 1);
   });
 }
 
@@ -260,6 +310,46 @@ function setupIPC(): void {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
   });
 
+  // Quit app
+  ipcMain.handle('app:quit', () => {
+    isQuitting = true;
+    app.quit();
+  });
+
+  // Open external URL in system browser
+  ipcMain.handle('shell:openExternal', async (_event, url: string) => {
+    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+      await shell.openExternal(url);
+    }
+  });
+
+  // Resize window
+  ipcMain.handle('window:resize', (_event, width: number, height: number) => {
+    if (mainWindow) {
+      mainWindow.setSize(width, height, true);
+      return true;
+    }
+    return false;
+  });
+
+  // Reset window to default size and position (like first launch)
+  ipcMain.handle('window:resetToDefault', () => {
+    if (mainWindow) {
+      const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
+      const defaultWidth = 350;
+      const defaultHeight = 340;
+      const defaultX = screenWidth - defaultWidth - 20;
+      const defaultY = 60;
+      
+      const newBounds = { x: defaultX, y: defaultY, width: defaultWidth, height: defaultHeight };
+      mainWindow.setBounds(newBounds, true);
+      // Save the new state so it persists
+      saveWindowState(newBounds);
+      return true;
+    }
+    return false;
+  });
+
   // Refresh dock and floating (call after login)
   ipcMain.handle('window:refreshDock', () => {
     if (process.platform === 'darwin' && app.dock) {
@@ -283,7 +373,6 @@ function setupIPC(): void {
       // Re-apply floating AFTER dock.show()
       setTimeout(() => {
         if (mainWindow) {
-          mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
           mainWindow.setAlwaysOnTop(true, 'floating', 1);
         }
       }, 100);
@@ -316,6 +405,36 @@ function setupIPC(): void {
       }
     }
     return true;
+  });
+
+  // OpenAI API proxy - bypasses renderer CSP restrictions
+  ipcMain.handle('ai:chat', async (_event, payload: { apiKey: string; model: string; messages: Array<{ role: string; content: string }>; temperature: number }) => {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${payload.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: payload.model,
+          messages: payload.messages,
+          temperature: payload.temperature,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        return { error: true, status: response.status, body: errorBody };
+      }
+
+      const data = await response.json();
+      return { error: false, data };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return { error: true, status: 0, body: message };
+    }
   });
 }
 
@@ -380,8 +499,7 @@ function setupAutoUpdater(): void {
       defaultId: 0,
     }).then((result) => {
       if (result.response === 0) {
-        isQuitting = true;
-        autoUpdater.quitAndInstall(false, true);
+        performUpdate();
       }
     });
   });
@@ -393,10 +511,26 @@ function setupAutoUpdater(): void {
   // IPC handler to install update
   ipcMain.handle('updater:install', () => {
     if (updateDownloadedVersion) {
-      isQuitting = true;
-      autoUpdater.quitAndInstall(false, true);
+      performUpdate();
     }
   });
+}
+
+function performUpdate(): void {
+  console.log('Performing update...');
+  isQuitting = true;
+  
+  // Close all windows first
+  const windows = BrowserWindow.getAllWindows();
+  windows.forEach(win => {
+    win.removeAllListeners('close');
+    win.close();
+  });
+  
+  // quitAndInstall with isSilent=false, isForceRunAfter=true
+  setTimeout(() => {
+    autoUpdater.quitAndInstall(false, true);
+  }, 500);
 }
 
 // Register global hotkey
@@ -451,7 +585,6 @@ app.whenReady().then(() => {
       // Re-apply floating AFTER dock.show()
       setTimeout(() => {
         if (mainWindow) {
-          mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
           mainWindow.setAlwaysOnTop(true, 'floating', 1);
         }
       }, 100);

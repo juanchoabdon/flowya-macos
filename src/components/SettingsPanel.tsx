@@ -54,6 +54,18 @@ export function SettingsPanel({ settings, onUpdate, onClose }: SettingsPanelProp
             </div>
           </div>
           
+          <div className="settings-group">
+            <button 
+              className="settings-btn"
+              onClick={() => {
+                window.windowApi?.resetWindowToDefault();
+              }}
+            >
+              <ResizeIcon />
+              Reset Window Size
+            </button>
+          </div>
+          
           <div className="shortcut-hint">
             <kbd className="kbd">⌘</kbd> + <kbd className="kbd">⇧</kbd> + <kbd className="kbd">Space</kbd>
             <span style={{ marginLeft: 8 }}>to toggle window</span>
@@ -90,6 +102,21 @@ function CloseIcon() {
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+// Resize icon
+function ResizeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M2 5V2H5M9 2H12V5M12 9V12H9M5 12H2V9"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

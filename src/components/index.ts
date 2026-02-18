@@ -6,3 +6,5 @@ export { TodoItem } from './TodoItem';
 export { TodoDetail } from './TodoDetail';
 export { SettingsPanel } from './SettingsPanel';
 export { Login } from './Login';
+export { WhatsNewModal } from './WhatsNewModal';
+export { DailySummary, shouldShowDailySummary } from './DailySummary';
