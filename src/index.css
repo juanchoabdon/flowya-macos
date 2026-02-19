@@ -4336,18 +4336,19 @@ body {
 /* ===== AI Suggestion Chip ===== */
 
 .ai-suggestion-chip {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
   gap: 8px;
-  padding: 8px 14px;
+  padding: 10px 14px;
   margin: 8px 0 12px;
   background: rgba(255, 213, 79, 0.06);
   border: 1px solid rgba(255, 213, 79, 0.15);
   border-radius: 10px;
   animation: chipSlideIn 0.3s ease;
-  max-width: 100%;
+  width: 100%;
   cursor: pointer;
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
 
 .ai-suggestion-chip:hover {
@@ -4364,7 +4365,7 @@ body {
   border-color: rgba(255, 213, 79, 0.15);
 }
 
-.ai-suggestion-sparkle { font-size: 13px; flex-shrink: 0; }
+.ai-suggestion-sparkle { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
 
 .ai-suggestion-body {
   display: flex;
@@ -4378,9 +4379,8 @@ body {
 .ai-suggestion-text {
   font-size: 12.5px;
   color: rgba(255, 255, 255, 0.5);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .ai-suggestion-text.clickable {

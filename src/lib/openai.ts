@@ -204,27 +204,34 @@ Good task names ALWAYS start with a strong action verb. Think about what the per
 - Planning: Plan, Define, Scope, Prioritize, Estimate, Research, Investigate
 - Movement: Go to, Pick up, Drop off, Drive to, Visit
 
-Examples:
+Examples in English:
 - "slack" → "Send Slack update to team on launch status"
-- "llamada" → "Schedule call with design team for review"
 - "doc" → "Draft product spec for new onboarding flow"
-- "Juan" → "Reach out to Juan about partnership proposal"
 - "PR" → "Review and approve PR #45 for auth refactor"
 - "deploy" → "Deploy v2.1 hotfix to production"
-- "colegio" → "Pick up kids from school at 3pm"
-- "dentista" → "Schedule dentist appointment for next week"
 - "1:1" → "Prepare agenda for 1:1 with engineering lead"
-- "roadmap" → "Finalize Q3 product roadmap and share with team"
-- "bug login" → "Fix login timeout error on mobile app"
-- "diseño" → "Review design mockups for settings page"
-- "board" → "Update Jira board with sprint priorities"
-- "infra" → "Investigate AWS costs and propose optimization"
-- "standup" → "Lead daily standup at 10am"
 - "hiring" → "Review 5 engineering candidate profiles"
 
-IMPORTANT: Only suggest renames for tasks that are genuinely vague, incomplete, or unclear. If a task name is already clear and actionable (e.g., "Review PR #42 for auth changes"), do NOT include it. Quality over quantity.
+Examples in Spanglish (tech professionals in Latin America):
+- "slack" → "Mandar Slack al team con update del release"
+- "llamada" → "Agendar call con el equipo de diseño"
+- "doc" → "Escribir el PRD del nuevo feature"
+- "roadmap" → "Finalizar el roadmap de Q3 y compartir con el team"
+- "deploy" → "Hacer deploy del hotfix a prod"
+- "bug login" → "Fixear el bug de login en mobile"
+- "standup" → "Liderar el daily standup a las 10am"
+- "diseño" → "Revisar los mockups del settings page"
+- "sprint" → "Preparar el sprint planning de la semana"
+- "Juan" → "Contactar a Juan sobre la propuesta de partnership"
+- "colegio" → "Recoger a los niños del colegio a las 3pm"
+- "dentista" → "Agendar cita con el dentista para la próxima semana"
 
-CRITICAL: You MUST respond in the SAME language the task is written in. If the task is in Spanish, your suggestion MUST be in Spanish. If the task is in English, respond in English. Never translate — just make it more actionable in the original language.
+IMPORTANT: Only suggest renames for tasks that are genuinely vague, incomplete, or unclear. If a task name is already clear and actionable (e.g., "Revisar el PR de auth refactor"), do NOT include it. Quality over quantity.
+
+CRITICAL LANGUAGE RULES:
+- If the task is in English, respond in English.
+- If the task is in Spanish, use SPANGLISH — natural Latin American tech Spanish that mixes Spanish with common English tech terms (deploy, PR, sprint, feature, release, standup, bug, fix, roadmap, team, update, call, Slack, etc). This is how tech professionals actually talk.
+- Never fully translate English tech terms to formal Spanish. "Deploy" stays "deploy", "PR" stays "PR", "feature" stays "feature", "sprint" stays "sprint".
 
 Respond ONLY with valid JSON:
 {
@@ -306,9 +313,12 @@ ALWAYS start with a strong action verb. Think about what the person will physica
 - Movement: Go to, Pick up, Drop off, Visit
 
 Examples in English: "slack" → "Send Slack update to team", "doc" → "Draft product spec for new feature", "PR" → "Review PR for auth refactor"
-Examples in Spanish: "llamada" → "Programar llamada con equipo de diseño", "colegio" → "Recoger a los niños del colegio a las 3pm", "doc" → "Escribir documento de requerimientos", "slack" → "Enviar mensaje de Slack al equipo"
+Examples in Spanglish (tech): "llamada" → "Agendar call con el equipo de diseño", "roadmap" → "Finalizar el roadmap de Q3", "doc" → "Escribir el PRD del nuevo feature", "slack" → "Mandar Slack al team con update del release", "PR" → "Revisar el PR de auth refactor", "deploy" → "Hacer deploy del hotfix a prod", "standup" → "Liderar el daily standup", "sprint" → "Preparar el sprint planning", "bug" → "Fixear el bug de login en mobile", "colegio" → "Recoger a los niños del colegio a las 3pm"
 
-CRITICAL: You MUST respond in the SAME language the task is written in. If the task is in Spanish, your suggestion MUST be in Spanish. If the task is in English, respond in English. Never translate.
+CRITICAL LANGUAGE RULES:
+- If the task is in English, respond in English.
+- If the task is in Spanish, use SPANGLISH — natural Latin American tech Spanish that mixes Spanish with common English tech terms (deploy, PR, sprint, feature, release, standup, bug, fix, roadmap, team, update, call, Slack, etc). This is how tech professionals actually talk.
+- Never fully translate English tech terms to formal Spanish. "Deploy" stays "deploy", "PR" stays "PR", "feature" stays "feature", "sprint" stays "sprint".
 
 If the task name is ALREADY clear and actionable, respond with: {"suggestion": null}
 
