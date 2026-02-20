@@ -107,6 +107,31 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
 
   const urgencyClass = getUrgencyClass();
 
+  const formatETA = (): string | null => {
+    if (!todo.due_date || todo.status === 'done') return null;
+    const now = new Date();
+    const due = parseDueDate(todo.due_date);
+    const diffMs = due.getTime() - now.getTime();
+    const diffMins = Math.round(diffMs / 60000);
+    const diffHours = Math.round(diffMs / 3600000);
+    const diffDays = Math.round(diffMs / 86400000);
+
+    if (diffMs < 0) {
+      const absMins = Math.abs(diffMins);
+      if (absMins < 60) return `${absMins}m overdue`;
+      const absHours = Math.abs(diffHours);
+      if (absHours < 24) return `${absHours}h overdue`;
+      return `${Math.abs(diffDays)}d overdue`;
+    }
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays === 1) return 'Tomorrow';
+    if (diffDays <= 6) return due.toLocaleDateString('en-US', { weekday: 'short' });
+    return due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const etaLabel = formatETA();
+
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('taskId', todo.id);
     e.dataTransfer.effectAllowed = 'move';
@@ -194,16 +219,22 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
           />
         ) : (
           <div className="todo-text-wrapper">
-            <span className="todo-text">
-              {todo.priority && todo.priority !== 'P1' && (
-                <span className={`priority-badge priority-${todo.priority.toLowerCase()}`}>
-                  {todo.priority}
-                </span>
+              <span className="todo-text">
+                {todo.priority && todo.priority !== 'P1' && (
+                  <span className={`priority-badge priority-${todo.priority.toLowerCase()}`}>
+                    {todo.priority}
+                  </span>
+                )}
+                {todo.text}
+              </span>
+              {todo.description && todo.description.replace(/<[^>]*>/g, '').trim() && (
+                <NoteIcon />
               )}
-              {todo.text}
-            </span>
-            {todo.description && todo.description.replace(/<[^>]*>/g, '').trim() && (
-              <NoteIcon />
+            {etaLabel && (
+              <span className={`todo-eta-label ${urgencyClass}`}>
+                <ClockSmallIcon />
+                {etaLabel}
+              </span>
             )}
             {space && (
               <span 
@@ -357,6 +388,15 @@ function NoteIcon() {
         strokeWidth="1.2"
       />
       <path d="M4 4.5H8M4 6.5H7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ClockSmallIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+      <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M6 3V6L8 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

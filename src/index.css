@@ -1070,6 +1070,25 @@ body {
   flex-shrink: 0;
 }
 
+.todo-eta-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.todo-eta-label.due-soon {
+  color: #FFCC00;
+}
+
+.todo-eta-label.overdue {
+  color: #FF453A;
+}
+
 .todo-text-input {
   width: 100%;
   padding: 0;
@@ -1254,6 +1273,11 @@ body {
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--transition-fast);
+  background: rgba(30, 30, 30, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 8px;
+  padding: 2px 4px;
 }
 
 .todo-item:hover .todo-actions {
