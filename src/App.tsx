@@ -133,10 +133,11 @@ export default function App() {
     const day = new Date().getDay();
     if (day !== 0 && day !== 1) return false; // only Sunday (0) or Monday (1)
     if (!aiIsSetup) return false;
+    if (hasGoalsThisWeek) return false;
     const mondayStr = getMonday();
     const lastPlanned = localStorage.getItem('flowya_last_weekly_plan_date');
     return lastPlanned !== mondayStr;
-  }, [aiIsSetup]);
+  }, [aiIsSetup, hasGoalsThisWeek]);
 
   const markWeeklyPlanningDone = useCallback(() => {
     localStorage.setItem('flowya_last_weekly_plan_date', getMonday());
