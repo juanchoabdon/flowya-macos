@@ -386,7 +386,11 @@ export function getMonday(date: Date = new Date()): string {
   } else {
     d.setDate(d.getDate() - day + 1);
   }
-  return d.toISOString().split('T')[0];
+  // Use local time (not UTC) to avoid timezone drift
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 export async function getWeeklyGoals(userId: string, weekStart: string): Promise<WeeklyGoal[]> {
