@@ -236,7 +236,42 @@ INSERT INTO changelogs (version, date, changes) VALUES
     'P0 and overdue tasks auto-sort to the top',
     'Confirmation modal when dragging tasks above P0',
     'Smart ETA rescheduling for overdue tasks during AI prioritization'
-  ])
+  ])``````````` 
 ON CONFLICT (version) DO NOTHING;
 
 -- Done! Changelogs table created
+
+-- ============================================
+-- Migration: Add weekly_goals table for Weekly AI Planning
+-- ============================================
+
+-- Step 28: Create weekly_goals table
+CREATE TABLE IF NOT EXISTS weekly_goals (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  space_id UUID NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  week_start DATE NOT NULL,
+  goal_text TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  linked_todo_id UUID REFERENCES todos(id) ON DELETE SET NULL,
+  completed BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Step 29: Create index for fast weekly queries
+CREATE INDEX IF NOT EXISTS idx_weekly_goals_user_week ON weekly_goals(user_id, week_start);
+
+-- Step 30: Enable RLS on weekly_goals
+ALTER TABLE weekly_goals ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users manage own weekly goals" ON weekly_goals
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Done! Weekly goals table created for Weekly AI Planning
+
+-- ============================================
+-- Migration: Add linked_todo_ids array to weekly_goals
+-- ============================================
+
+-- Step 31: Add linked_todo_ids column (array of UUIDs stored as text[])
+ALTER TABLE weekly_goals ADD COLUMN IF NOT EXISTS linked_todo_ids TEXT[] DEFAULT '{}';

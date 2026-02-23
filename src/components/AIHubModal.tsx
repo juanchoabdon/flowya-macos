@@ -3,10 +3,12 @@ import { SparkleIcon } from './AIOnboarding';
 interface AIHubModalProps {
   onPrioritize: () => void;
   onRename: () => void;
+  onWeeklyPlan: () => void;
+  onDuplicates: () => void;
   onClose: () => void;
 }
 
-export function AIHubModal({ onPrioritize, onRename, onClose }: AIHubModalProps) {
+export function AIHubModal({ onPrioritize, onRename: _onRename, onWeeklyPlan, onDuplicates, onClose }: AIHubModalProps) {
   return (
     <div className="ai-hub-overlay" onClick={onClose}>
       <div className="ai-hub-modal" onClick={e => e.stopPropagation()}>
@@ -15,7 +17,7 @@ export function AIHubModal({ onPrioritize, onRename, onClose }: AIHubModalProps)
         </button>
 
         <div className="ai-hub-header">
-          <SparkleIcon size={32} />
+          <SparkleIcon size={24} />
           <h2 className="ai-hub-title">AI Boost</h2>
           <p className="ai-hub-subtitle">What would you like to improve?</p>
         </div>
@@ -32,13 +34,24 @@ export function AIHubModal({ onPrioritize, onRename, onClose }: AIHubModalProps)
             <ChevronRight />
           </button>
 
-          <button className="ai-hub-card" onClick={onRename}>
+          <button className="ai-hub-card" onClick={onWeeklyPlan}>
             <div className="ai-hub-card-icon">
-              <RenameIcon />
+              <WeeklyPlanIcon />
             </div>
             <div className="ai-hub-card-body">
-              <span className="ai-hub-card-title">Sharpen task names</span>
-              <span className="ai-hub-card-desc">Rewrite vague tasks into concrete actions</span>
+              <span className="ai-hub-card-title">Plan my week</span>
+              <span className="ai-hub-card-desc">Set 5 weekly goals and let AI map them to tasks</span>
+            </div>
+            <ChevronRight />
+          </button>
+
+          <button className="ai-hub-card" onClick={onDuplicates}>
+            <div className="ai-hub-card-icon">
+              <DuplicatesIcon />
+            </div>
+            <div className="ai-hub-card-body">
+              <span className="ai-hub-card-title">Remove duplicates</span>
+              <span className="ai-hub-card-desc">Find and merge duplicate tasks across spaces</span>
             </div>
             <ChevronRight />
           </button>
@@ -66,11 +79,25 @@ function PrioritizeIcon() {
   );
 }
 
-function RenameIcon() {
+function WeeklyPlanIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M11.5 3.5L16.5 8.5L7.5 17.5H2.5V12.5L11.5 3.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M9.5 5.5L14.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M3 8H17" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M7 2V5M13 2V5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="7" cy="12" r="1" fill="#FFD54F"/>
+      <circle cx="10" cy="12" r="1" fill="#FF6B9D"/>
+      <circle cx="13" cy="12" r="1" fill="#4FC3F7"/>
+    </svg>
+  );
+}
+
+function DuplicatesIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <rect x="3" y="3" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+      <rect x="7" y="7" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.5"/>
+      <path d="M6 8L8 10L12 6" stroke="#FF5252" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.7"/>
     </svg>
   );
 }

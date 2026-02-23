@@ -499,50 +499,6 @@ export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spa
           </h2>
         )}
 
-        {/* AI name suggestion chip */}
-        {!aiSuggestionDismissed && (aiSuggestionLoading || aiSuggestion) && (
-          <div
-            className={`ai-suggestion-chip ${aiSuggestionLoading ? 'loading' : ''}`}
-            onClick={() => {
-              if (aiSuggestion && !aiSuggestionLoading) {
-                setTitle(aiSuggestion);
-                onUpdate(todo.id, { text: aiSuggestion });
-                setAISuggestion(null);
-                setAISuggestionDismissed(true);
-                try {
-                  const stored = JSON.parse(localStorage.getItem('flowya_ai_suggestion_dismissed') || '[]');
-                  localStorage.setItem('flowya_ai_suggestion_dismissed', JSON.stringify([...new Set([...stored, todo.id])]));
-                } catch { /* ignore */ }
-              }
-            }}
-          >
-            <span className="ai-suggestion-sparkle">✨</span>
-            {aiSuggestionLoading ? (
-              <span className="ai-suggestion-text">Thinking of a better name...</span>
-            ) : (
-              <>
-                <span className="ai-suggestion-body">
-                  <span className="ai-suggestion-text clickable">{aiSuggestion}</span>
-                  <span className="ai-suggestion-apply">Tap to apply</span>
-                </span>
-                <button
-                  className="ai-suggestion-dismiss"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAISuggestionDismissed(true);
-                    try {
-                      const stored = JSON.parse(localStorage.getItem('flowya_ai_suggestion_dismissed') || '[]');
-                      localStorage.setItem('flowya_ai_suggestion_dismissed', JSON.stringify([...new Set([...stored, todo.id])]));
-                    } catch { /* ignore */ }
-                  }}
-                >
-                  ×
-                </button>
-              </>
-            )}
-          </div>
-        )}
-
         {/* Due Date inline selector */}
         {todo.status !== 'done' && (
           <div className="due-date-field" ref={dueDateRef}>
@@ -645,6 +601,50 @@ export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spa
                   </div>
                 )}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* AI name suggestion chip */}
+        {!aiSuggestionDismissed && (aiSuggestionLoading || aiSuggestion) && (
+          <div
+            className={`ai-suggestion-chip ${aiSuggestionLoading ? 'loading' : ''}`}
+            onClick={() => {
+              if (aiSuggestion && !aiSuggestionLoading) {
+                setTitle(aiSuggestion);
+                onUpdate(todo.id, { text: aiSuggestion });
+                setAISuggestion(null);
+                setAISuggestionDismissed(true);
+                try {
+                  const stored = JSON.parse(localStorage.getItem('flowya_ai_suggestion_dismissed') || '[]');
+                  localStorage.setItem('flowya_ai_suggestion_dismissed', JSON.stringify([...new Set([...stored, todo.id])]));
+                } catch { /* ignore */ }
+              }
+            }}
+          >
+            <span className="ai-suggestion-sparkle">✨</span>
+            {aiSuggestionLoading ? (
+              <span className="ai-suggestion-text">Thinking of a better name...</span>
+            ) : (
+              <>
+                <span className="ai-suggestion-body">
+                  <span className="ai-suggestion-text clickable">{aiSuggestion}</span>
+                  <span className="ai-suggestion-apply">Tap to apply</span>
+                </span>
+                <button
+                  className="ai-suggestion-dismiss"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAISuggestionDismissed(true);
+                    try {
+                      const stored = JSON.parse(localStorage.getItem('flowya_ai_suggestion_dismissed') || '[]');
+                      localStorage.setItem('flowya_ai_suggestion_dismissed', JSON.stringify([...new Set([...stored, todo.id])]));
+                    } catch { /* ignore */ }
+                  }}
+                >
+                  ×
+                </button>
+              </>
             )}
           </div>
         )}

@@ -177,6 +177,7 @@ export function DailySummary({ onClose, showToday = false, streakBestToday = 0, 
   
   return (
     <div className={`daily-summary-overlay ${visible ? 'visible' : ''}`}>
+      <div className="daily-summary-drag-bar" />
       <div className="daily-summary-modal">
         <button className="daily-summary-close" onClick={handleClose}>
           <CloseIcon />

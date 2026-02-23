@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Space, Todo, Settings } from '../types';
+import type { Space, Todo, Settings, WeeklyGoal } from '../types';
 import { SPACE_COLORS } from '../types';
 
 // Get Supabase credentials from environment variables
@@ -374,6 +374,108 @@ export interface Changelog {
   changes: string[];
   created_at: string;
 }
+
+// ============ Weekly Goals API ============
+
+export function getMonday(date: Date = new Date()): string {
+  const d = new Date(date);
+  const day = d.getDay();
+  // Sunday: plan for NEXT Monday (tomorrow)
+  if (day === 0) {
+    d.setDate(d.getDate() + 1);
+  } else {
+    d.setDate(d.getDate() - day + 1);
+  }
+  return d.toISOString().split('T')[0];
+}
+
+export async function getWeeklyGoals(userId: string, weekStart: string): Promise<WeeklyGoal[]> {
+  const { data, error } = await supabase
+    .from('weekly_goals')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('week_start', weekStart)
+    .order('position', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching weekly goals:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function getLastWeekGoals(userId: string): Promise<WeeklyGoal[]> {
+  const now = new Date();
+  const lastMonday = new Date(now);
+  lastMonday.setDate(lastMonday.getDate() - 7);
+  const weekStart = getMonday(lastMonday);
+
+  return getWeeklyGoals(userId, weekStart);
+}
+
+export async function upsertWeeklyGoals(
+  userId: string,
+  goals: Array<{ space_id: string; goal_text: string; position: number; linked_todo_id?: string | null; linked_todo_ids?: string[] }>
+): Promise<WeeklyGoal[]> {
+  const weekStart = getMonday();
+
+  // Delete existing goals for this week first
+  await supabase
+    .from('weekly_goals')
+    .delete()
+    .eq('user_id', userId)
+    .eq('week_start', weekStart);
+
+  if (goals.length === 0) return [];
+
+  const rows = goals.map(g => ({
+    user_id: userId,
+    space_id: g.space_id,
+    week_start: weekStart,
+    goal_text: g.goal_text,
+    position: g.position,
+    linked_todo_id: g.linked_todo_ids?.[0] || g.linked_todo_id || null,
+    linked_todo_ids: g.linked_todo_ids || (g.linked_todo_id ? [g.linked_todo_id] : []),
+    completed: false,
+  }));
+
+  const { data, error } = await supabase
+    .from('weekly_goals')
+    .insert(rows)
+    .select();
+
+  if (error) {
+    console.error('Error upserting weekly goals:', error);
+    throw error;
+  }
+  return data || [];
+}
+
+export async function updateWeeklyGoalLinkedTodo(goalId: string, linkedTodoId: string): Promise<void> {
+  const { error } = await supabase
+    .from('weekly_goals')
+    .update({ linked_todo_id: linkedTodoId })
+    .eq('id', goalId);
+
+  if (error) {
+    console.error('Error updating weekly goal linked todo:', error);
+  }
+}
+
+export async function updateWeeklyGoalCompletion(goalId: string, completed: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('weekly_goals')
+    .update({ completed })
+    .eq('id', goalId);
+
+  if (error) {
+    console.error('Error updating weekly goal completion:', error);
+  }
+}
+
+// ============================================
+// Changelogs
+// ============================================
 
 export async function getChangelogs(): Promise<Changelog[]> {
   const { data, error } = await supabase

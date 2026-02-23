@@ -152,3 +152,11 @@ export function trackAIPrioritize(scope: 'all' | 'space'): void {
 export function trackAIAccept(count: number): void {
   amplitude.track('ai_accept', { count });
 }
+
+export function trackAIDuplicates(found: number): void {
+  amplitude.track('ai_duplicates', { found });
+}
+
+export function trackAIDuplicatesAccept(removed: number): void {
+  amplitude.track('ai_duplicates_accept', { removed });
+}

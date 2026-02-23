@@ -89,6 +89,50 @@ export interface AIRenameResult {
   summary: string;
 }
 
+// Duplicate Detection types
+export interface AIDuplicateGroup {
+  keepTodoId: string;
+  removeTodoIds: string[];
+  reason: string;
+}
+
+export interface AIDuplicatesResult {
+  groups: AIDuplicateGroup[];
+  summary: string;
+}
+
+// Weekly Planning types
+export interface WeeklyGoal {
+  id: string;
+  user_id: string;
+  space_id: string;
+  week_start: string;
+  goal_text: string;
+  position: number;
+  linked_todo_id: string | null;
+  linked_todo_ids: string[];
+  completed: boolean;
+  created_at: string;
+}
+
+export interface AIWeeklyPlanMapping {
+  goalPosition: number;
+  goalText: string;
+  spaceId: string;
+  action: 'map_existing' | 'create_new';
+  todoId?: string;
+  newTaskName?: string;
+  newPriority: Priority;
+  newDueDate?: string | null;
+  rationale: string;
+}
+
+export interface AIWeeklyPlanResult {
+  summary: string;
+  mappings: AIWeeklyPlanMapping[];
+  reprioritizations: AIRecommendation[];
+}
+
 // Filter types
 export type FilterType = 'all' | 'backlog' | 'in_progress' | 'done';
 

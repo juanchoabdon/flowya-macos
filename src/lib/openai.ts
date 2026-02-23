@@ -1,4 +1,4 @@
-import type { Todo, Space, AIAnalysisResult, AIRenameResult, Priority } from '../types';
+import type { Todo, Space, AIAnalysisResult, AIRenameResult, AIWeeklyPlanResult, AIDuplicatesResult, Priority } from '../types';
 
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string;
 const MODEL = 'gpt-4o';
@@ -346,4 +346,283 @@ Respond ONLY with valid JSON: {"suggestion": "improved name" } or {"suggestion":
   } catch {
     return null;
   }
+}
+
+interface WeeklyObjective {
+  spaceId: string;
+  spaceName: string;
+  goals: string[];
+}
+
+export async function planWeek(
+  profile: AIProfile,
+  objectives: WeeklyObjective[],
+  tasks: Todo[],
+  spaces: Space[],
+): Promise<AIWeeklyPlanResult> {
+  const spaceMap = Object.fromEntries(spaces.map(s => [s.id, s.name]));
+
+  if (!OPENAI_API_KEY) {
+    throw new Error('OpenAI API key not configured.');
+  }
+
+  const allGoals = objectives.flatMap(o => o.goals.map((g, i) => ({
+    spaceId: o.spaceId,
+    spaceName: o.spaceName,
+    goalText: g,
+    position: i + 1,
+  })));
+
+  if (allGoals.length === 0) {
+    throw new Error('No objectives entered. Write at least one goal to plan your week!');
+  }
+
+  const roleDescriptions = Object.entries(profile.roles)
+    .map(([spaceId, role]) => `- In "${spaceMap[spaceId] || 'Unknown'}" space: ${role}`)
+    .join('\n');
+
+  const activeTasks = tasks.filter(t => t.status !== 'done' && !t.archived);
+  const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  const taskList = activeTasks.map(t => ({
+    id: t.id,
+    text: t.text,
+    description: stripHtml(t.description || '').slice(0, 200),
+    status: t.status,
+    priority: t.priority,
+    due_date: t.due_date,
+    space: spaceMap[t.space_id] || 'Unknown',
+    space_id: t.space_id,
+  }));
+
+  const objectivesList = allGoals.map(g => ({
+    spaceId: g.spaceId,
+    spaceName: g.spaceName,
+    goalText: g.goalText,
+    position: g.position,
+  }));
+
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const systemPrompt = `You are a world-class weekly planning coach for tech professionals. The user is starting their week and has set high-level objectives for what they want to accomplish.
+
+The user has the following roles:
+${roleDescriptions}
+
+Additional context:
+${profile.context || 'No additional context provided.'}
+
+Today is ${today}. This is the start-of-week planning session.
+
+YOUR JOB:
+1. For each high-level objective, THOROUGHLY search the existing task list for ALL tasks that relate to it. ALWAYS prefer mapping to existing tasks over creating new ones.
+2. Only create new tasks if the objective requires work that NO existing task covers AT ALL.
+3. Boost tasks linked to weekly objectives to P0 or P1.
+4. For other active tasks NOT linked to any objective, suggest reasonable reprioritizations (P2/P3 for less urgent ones).
+5. Set realistic ETAs for objective-linked tasks within this week (Mon-Sun).
+6. Each objective should have AT LEAST 1 mapping, but can have as many as needed (typically 1-3).
+
+CRITICAL MATCHING RULES (MOST IMPORTANT — READ CAREFULLY):
+- ALWAYS PREFER EXISTING TASKS. Creating duplicates is a SERIOUS ERROR. Only use "create_new" as a LAST RESORT when absolutely nothing in the task list relates to the objective.
+- Match SEMANTICALLY, not just by exact text. A task about "revisar el PR de pagos" matches an objective about "Ship payments feature". A task "Preparar deck Q2" matches "Kick off planning Q2".
+- Match ACROSS LANGUAGES. If the objective is in Spanish, also look for English tasks that cover the same topic, and vice versa. The user is bilingual and uses Spanglish — tasks may be in English, Spanish, or a mix.
+  Examples of cross-language matches:
+    - Objective: "Cerrar deal con Acme" → matches task "Send proposal to Acme" ✓
+    - Objective: "Ship payments feature" → matches task "Terminar el feature de pagos" ✓
+    - Objective: "Hacer kick off de Q2" → matches task "Schedule Q2 planning meeting" ✓
+- Map ALL existing tasks that clearly relate to the objective — don't limit to just one.
+- When matching, prefer tasks in the SAME space as the objective, but also consider tasks in other spaces if relevant.
+- Multiple mappings for the same goal MUST share the same goalPosition and goalText.
+- Before creating ANY new task, double-check the ENTIRE task list one more time. If there is ANYTHING remotely related, map to it instead.
+
+CRITICAL LANGUAGE RULES (for NEW tasks only):
+- If the objective is in English, create the task name in English.
+- If the objective is in Spanish, use SPANGLISH — natural Latin American tech Spanish that mixes Spanish with common English tech terms (deploy, PR, sprint, feature, release, standup, bug, fix, roadmap, team, update, call, Slack, etc).
+- Never fully translate English tech terms to formal Spanish.
+
+WHEN CREATING NEW TASKS:
+- Write them as clear, verb-first actions. Examples:
+   - Objective: "Kick off planning Q2" → "Agendar reunión de kick-off de planning Q2"
+   - Objective: "Close deal with Acme" → "Prepare and send final proposal to Acme"
+   - Objective: "Ship payments feature" → "Deploy payments feature to staging"
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "summary": "Brief 1-2 sentence overview of the weekly plan",
+  "mappings": [
+    {
+      "goalPosition": 1,
+      "goalText": "the original objective text",
+      "spaceId": "the space id",
+      "action": "map_existing",
+      "todoId": "existing task id if mapping",
+      "newTaskName": null,
+      "newPriority": "P0",
+      "newDueDate": "2026-02-09T23:59:00.000Z",
+      "rationale": "Brief reason (under 15 words)"
+    },
+    {
+      "goalPosition": 2,
+      "goalText": "another objective",
+      "spaceId": "the space id",
+      "action": "create_new",
+      "todoId": null,
+      "newTaskName": "Concrete verb-first task name",
+      "newPriority": "P0",
+      "newDueDate": "2026-02-10T23:59:00.000Z",
+      "rationale": "Brief reason"
+    }
+  ],
+  "reprioritizations": [
+    {
+      "todoId": "task id",
+      "rank": 1,
+      "newPriority": "P2",
+      "newDueDate": null,
+      "rationale": "Not aligned with this week's objectives",
+      "action": "keep"
+    }
+  ]
+}
+
+Rules:
+- "mappings" must include AT LEAST one entry per objective, but CAN include multiple entries for the same objective (same goalPosition/goalText, different tasks)
+- STRONGLY prefer "map_existing" over "create_new". Creating a task that duplicates an existing one is WRONG.
+- "reprioritizations" should only include tasks that genuinely need priority changes (don't include tasks that are fine as-is)
+- Use ISO 8601 dates with end-of-day time (23:59)
+- Keep rationales concise
+- Be decisive — the user wants a clear plan, not options`;
+
+  const userPrompt = `Here are my weekly objectives:\n\n${JSON.stringify(objectivesList, null, 2)}\n\nHere are my current tasks:\n\n${JSON.stringify(taskList, null, 2)}`;
+
+  const result = await window.windowApi.aiChat({
+    apiKey: OPENAI_API_KEY,
+    model: MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.3,
+  });
+
+  if (result.error) {
+    console.error('[OpenAI] Weekly plan API error:', result.status, result.body);
+    throw new Error(`OpenAI API error: ${result.status || 'network'} - ${result.body || 'Unknown error'}`);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = result.data as any;
+  const content = data?.choices?.[0]?.message?.content;
+
+  if (!content) {
+    throw new Error('No response content from OpenAI');
+  }
+
+  const parsed = JSON.parse(content) as AIWeeklyPlanResult;
+
+  const validPriorities: Priority[] = ['P0', 'P1', 'P2', 'P3'];
+  parsed.mappings = parsed.mappings.map(m => ({
+    ...m,
+    newPriority: validPriorities.includes(m.newPriority) ? m.newPriority : 'P1',
+  }));
+  parsed.reprioritizations = (parsed.reprioritizations || []).map(r => ({
+    ...r,
+    newPriority: validPriorities.includes(r.newPriority) ? r.newPriority : 'P2',
+    action: r.action === 'archive' ? 'archive' : 'keep',
+  }));
+
+  return parsed;
+}
+
+export async function findDuplicates(
+  tasks: Todo[],
+  spaces: Space[],
+): Promise<AIDuplicatesResult> {
+  if (!OPENAI_API_KEY) {
+    throw new Error('OpenAI API key not configured.');
+  }
+
+  const spaceMap = Object.fromEntries(spaces.map(s => [s.id, s.name]));
+  const activeTasks = tasks.filter(t => !t.archived);
+  const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+  if (activeTasks.length < 2) {
+    return { groups: [], summary: 'Not enough tasks to check for duplicates.' };
+  }
+
+  const taskList = activeTasks.map(t => ({
+    id: t.id,
+    text: t.text,
+    description: stripHtml(t.description || '').slice(0, 150),
+    status: t.status,
+    priority: t.priority,
+    space: spaceMap[t.space_id] || 'Unknown',
+  }));
+
+  const systemPrompt = `You are a duplicate task detector. The user has a task list that may contain duplicates or near-duplicates.
+
+YOUR JOB:
+Find groups of tasks that are duplicates or near-duplicates. Two tasks are duplicates if they refer to the SAME work, even if worded differently or in different languages.
+
+MATCHING CRITERIA:
+- Same action described differently: "Fix login bug" and "Arreglar bug de login" are duplicates
+- Same topic with slight variation: "Send Q2 report" and "Prepare and send Q2 report" are duplicates
+- Cross-language matches: Spanish and English tasks about the same thing are duplicates
+- Different priority/status but same work: still duplicates
+- Tasks in DIFFERENT spaces can be duplicates too
+
+NOT DUPLICATES:
+- Related but distinct tasks: "Design landing page" and "Code landing page" are NOT duplicates
+- Similar category but different scope: "Fix payment bug" and "Fix auth bug" are NOT duplicates
+
+For each group, pick the BEST task to keep (prefer: the one with more detail/description, higher priority, or in_progress status). Mark the rest for removal.
+
+Respond ONLY with valid JSON:
+{
+  "summary": "Found N duplicate groups across your tasks",
+  "groups": [
+    {
+      "keepTodoId": "id of the best task to keep",
+      "removeTodoIds": ["id1", "id2"],
+      "reason": "Brief explanation of why these are duplicates (under 15 words)"
+    }
+  ]
+}
+
+Rules:
+- If NO duplicates found, return empty groups array with summary "No duplicates found — your task list is clean!"
+- A task can only appear in ONE group
+- Be conservative — only flag TRUE duplicates, not merely related tasks
+- Keep rationales short and clear`;
+
+  const userPrompt = `Here are my tasks:\n\n${JSON.stringify(taskList, null, 2)}`;
+
+  const result = await window.windowApi.aiChat({
+    apiKey: OPENAI_API_KEY,
+    model: MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.2,
+  });
+
+  if (result.error) {
+    console.error('[OpenAI] Duplicates API error:', result.status, result.body);
+    throw new Error(`OpenAI API error: ${result.status || 'network'} - ${result.body || 'Unknown error'}`);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = result.data as any;
+  const content = data?.choices?.[0]?.message?.content;
+
+  if (!content) {
+    throw new Error('No response content from OpenAI');
+  }
+
+  return JSON.parse(content) as AIDuplicatesResult;
 }
