@@ -466,6 +466,42 @@ export async function updateWeeklyGoalLinkedTodo(goalId: string, linkedTodoId: s
   }
 }
 
+export async function linkTodoToGoal(goalId: string, todoId: string): Promise<void> {
+  const { data } = await supabase
+    .from('weekly_goals')
+    .select('linked_todo_ids, linked_todo_id')
+    .eq('id', goalId)
+    .single();
+
+  const current: string[] = data?.linked_todo_ids || (data?.linked_todo_id ? [data.linked_todo_id] : []);
+  if (current.includes(todoId)) return;
+
+  const updated = [...current, todoId];
+  const { error } = await supabase
+    .from('weekly_goals')
+    .update({ linked_todo_ids: updated, linked_todo_id: updated[0] })
+    .eq('id', goalId);
+
+  if (error) console.error('Error linking todo to goal:', error);
+}
+
+export async function unlinkTodoFromGoal(goalId: string, todoId: string): Promise<void> {
+  const { data } = await supabase
+    .from('weekly_goals')
+    .select('linked_todo_ids, linked_todo_id')
+    .eq('id', goalId)
+    .single();
+
+  const current: string[] = data?.linked_todo_ids || (data?.linked_todo_id ? [data.linked_todo_id] : []);
+  const updated = current.filter(id => id !== todoId);
+  const { error } = await supabase
+    .from('weekly_goals')
+    .update({ linked_todo_ids: updated, linked_todo_id: updated[0] || null })
+    .eq('id', goalId);
+
+  if (error) console.error('Error unlinking todo from goal:', error);
+}
+
 export async function updateWeeklyGoalCompletion(goalId: string, completed: boolean): Promise<void> {
   const { error } = await supabase
     .from('weekly_goals')

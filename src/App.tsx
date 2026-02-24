@@ -23,7 +23,7 @@ import { useAIProfile } from './hooks/useAIProfile';
 import { useWeeklyGoals } from './hooks/useWeeklyGoals';
 import { AIDuplicatesModal } from './components/AIDuplicatesModal';
 import { prioritizeTasks, renameTasks, planWeek, findDuplicates } from './lib/openai';
-import { upsertWeeklyGoals, getMonday } from './lib/supabase';
+import { upsertWeeklyGoals, getMonday, linkTodoToGoal, unlinkTodoFromGoal } from './lib/supabase';
 import type { FilterType, Todo, Priority, AIAnalysisResult, AIRenameResult, AIRenameSuggestion, AIWeeklyPlanResult, AIDuplicatesResult } from './types';
 import * as analytics from './lib/analytics';
 
@@ -67,6 +67,7 @@ export default function App() {
 
   // Weekly Planning state
   const [showWeeklyPlanning, setShowWeeklyPlanning] = useState(false);
+  const [weeklyPlanInitialSpace, setWeeklyPlanInitialSpace] = useState<string | undefined>(undefined);
   const [weeklyPlanResult, setWeeklyPlanResult] = useState<AIWeeklyPlanResult | null>(null);
   const [weeklyPlanLoading, setWeeklyPlanLoading] = useState(false);
   const [weeklyPlanError, setWeeklyPlanError] = useState<string | null>(null);
@@ -1030,6 +1031,15 @@ export default function App() {
             aiRoles={aiRoles}
             aiContext={aiContext}
             aiSetupComplete={aiIsSetup}
+            weeklyGoals={weeklyGoals}
+            onLinkGoal={async (goalId, todoId) => {
+              await linkTodoToGoal(goalId, todoId);
+              refetchWeeklyGoals();
+            }}
+            onUnlinkGoal={async (goalId, todoId) => {
+              await unlinkTodoFromGoal(goalId, todoId);
+              refetchWeeklyGoals();
+            }}
           />
         ) : (
           <>
@@ -1060,10 +1070,19 @@ export default function App() {
                   const todo = todos.find(t => t.id === todoId);
                   if (todo) setDetailTodo(todo);
                 }}
-                onEdit={() => {
+                onEdit={(spaceId) => {
                   setWeeklyPlanResult(null);
                   setWeeklyPlanError(null);
+                  setWeeklyPlanInitialSpace(spaceId);
                   setShowWeeklyPlanning(true);
+                }}
+                onLinkTask={async (goalId, todoId) => {
+                  await linkTodoToGoal(goalId, todoId);
+                  refetchWeeklyGoals();
+                }}
+                onUnlinkTask={async (goalId, todoId) => {
+                  await unlinkTodoFromGoal(goalId, todoId);
+                  refetchWeeklyGoals();
                 }}
               />
             )}
@@ -1216,9 +1235,10 @@ export default function App() {
           loading={weeklyPlanLoading}
           error={weeklyPlanError}
           isFirstTime={localStorage.getItem('flowya_weekly_plan_intro_seen') !== 'true'}
+          initialSpaceId={weeklyPlanInitialSpace}
           onPlan={handleWeeklyPlan}
           onAccept={handleAcceptWeeklyPlan}
-          onDismiss={() => { setShowWeeklyPlanning(false); setWeeklyPlanResult(null); setWeeklyPlanError(null); }}
+          onDismiss={() => { setShowWeeklyPlanning(false); setWeeklyPlanResult(null); setWeeklyPlanError(null); setWeeklyPlanInitialSpace(undefined); }}
         />
       )}
 

@@ -11,6 +11,7 @@ interface WeeklyPlanningModalProps {
   loading: boolean;
   error: string | null;
   isFirstTime: boolean;
+  initialSpaceId?: string;
   onPlan: (objectives: Array<{ spaceId: string; spaceName: string; goals: string[] }>) => void;
   onAccept: () => Promise<void> | void;
   onDismiss: () => void;
@@ -150,6 +151,7 @@ export function WeeklyPlanningModal({
   loading,
   error,
   isFirstTime,
+  initialSpaceId,
   onPlan,
   onAccept,
   onDismiss,
@@ -158,9 +160,15 @@ export function WeeklyPlanningModal({
   const hasLastWeek = lastWeekHadProgress;
   const hasCurrentWeek = currentWeekGoals.length > 0;
   const [step, setStep] = useState<Step>(
-    isFirstTime ? 'intro' : hasLastWeek && !hasCurrentWeek ? 'review' : 'goals'
+    initialSpaceId ? 'goals' : isFirstTime ? 'intro' : hasLastWeek && !hasCurrentWeek ? 'review' : 'goals'
   );
-  const [currentSpaceIndex, setCurrentSpaceIndex] = useState(0);
+  const [currentSpaceIndex, setCurrentSpaceIndex] = useState(() => {
+    if (initialSpaceId) {
+      const idx = spaces.findIndex(s => s.id === initialSpaceId);
+      return idx >= 0 ? idx : 0;
+    }
+    return 0;
+  });
   const [goalsMap, setGoalsMap] = useState<Record<string, string[]>>(() => {
     const map: Record<string, string[]> = {};
     for (const space of spaces) {

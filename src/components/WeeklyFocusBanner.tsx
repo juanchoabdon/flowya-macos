@@ -8,7 +8,9 @@ interface WeeklyFocusBannerProps {
   isAllView: boolean;
   selectedSpaceId: string | null;
   onOpenGoal: (todoId: string) => void;
-  onEdit: () => void;
+  onEdit: (spaceId?: string) => void;
+  onLinkTask: (goalId: string, todoId: string) => void;
+  onUnlinkTask: (goalId: string, todoId: string) => void;
 }
 
 export function WeeklyFocusBanner({
@@ -19,8 +21,11 @@ export function WeeklyFocusBanner({
   selectedSpaceId,
   onOpenGoal,
   onEdit,
+  onLinkTask,
+  onUnlinkTask,
 }: WeeklyFocusBannerProps) {
   const [expanded, setExpanded] = useState(false);
+  const [linkingGoalId, setLinkingGoalId] = useState<string | null>(null);
 
   const filteredGoals = isAllView || !selectedSpaceId
     ? goals
@@ -52,7 +57,7 @@ export function WeeklyFocusBanner({
           </div>
           <button
             className="weekly-banner-edit"
-            onClick={e => { e.stopPropagation(); onEdit(); }}
+            onClick={e => { e.stopPropagation(); onEdit(!isAllView && selectedSpaceId ? selectedSpaceId : undefined); }}
             title="Edit weekly goals"
           >
             <EditIcon />
@@ -65,12 +70,18 @@ export function WeeklyFocusBanner({
         <div className="weekly-banner-goals">
           {filteredGoals.map(g => {
             const space = spaceMap[g.space_id];
-            const linkedTodos = (g.linked_todo_ids || [])
+            const linkedTodoIds = new Set(
+              (g.linked_todo_ids || (g.linked_todo_id ? [g.linked_todo_id] : []))
+            );
+            const linkedTodos = [...linkedTodoIds]
               .map(id => todoMap[id])
               .filter(Boolean);
-            const fallbackTodo = !linkedTodos.length && g.linked_todo_id ? todoMap[g.linked_todo_id] : null;
-            if (fallbackTodo) linkedTodos.push(fallbackTodo);
             const isDone = g.completed;
+            const isLinking = linkingGoalId === g.id;
+
+            const spaceTasks = todos.filter(
+              t => t.space_id === g.space_id && !t.archived && !linkedTodoIds.has(t.id)
+            );
 
             return (
               <div key={g.id} className={`weekly-banner-goal ${isDone ? 'done' : ''}`}>
@@ -82,14 +93,51 @@ export function WeeklyFocusBanner({
                     {g.goal_text}
                   </span>
                   {linkedTodos.map(todo => (
-                    <span
-                      key={todo.id}
-                      className="weekly-banner-task-name clickable"
-                      onClick={() => onOpenGoal(todo.id)}
-                    >
-                      → {todo.text}
+                    <span key={todo.id} className="weekly-banner-task-row">
+                      <span
+                        className="weekly-banner-task-name clickable"
+                        onClick={() => onOpenGoal(todo.id)}
+                      >
+                        → {todo.text}
+                      </span>
+                      <button
+                        className="weekly-banner-unlink"
+                        onClick={() => onUnlinkTask(g.id, todo.id)}
+                        title="Unlink task"
+                      >
+                        ×
+                      </button>
                     </span>
                   ))}
+                  <div className="weekly-banner-add-task-wrap">
+                    <button
+                      className="weekly-banner-add-task"
+                      onClick={() => setLinkingGoalId(isLinking ? null : g.id)}
+                    >
+                      + Link task
+                    </button>
+                    {isLinking && (
+                      <div className="weekly-banner-task-dropdown">
+                        {spaceTasks.length === 0 ? (
+                          <div className="weekly-banner-task-option disabled">No tasks available</div>
+                        ) : (
+                          spaceTasks.slice(0, 15).map(t => (
+                            <button
+                              key={t.id}
+                              className="weekly-banner-task-option"
+                              onClick={() => {
+                                onLinkTask(g.id, t.id);
+                                setLinkingGoalId(null);
+                              }}
+                            >
+                              <span className={`weekly-banner-task-option-priority ${t.priority}`}>{t.priority}</span>
+                              {t.text}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {isAllView && space && (
                   <div className="weekly-banner-space-dot" style={{ background: space.color }} />
