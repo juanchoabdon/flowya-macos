@@ -11,6 +11,7 @@ interface WeeklyFocusBannerProps {
   onEdit: (spaceId?: string) => void;
   onLinkTask: (goalId: string, todoId: string) => void;
   onUnlinkTask: (goalId: string, todoId: string) => void;
+  onToggleComplete: (goalId: string) => void;
 }
 
 export function WeeklyFocusBanner({
@@ -23,6 +24,7 @@ export function WeeklyFocusBanner({
   onEdit,
   onLinkTask,
   onUnlinkTask,
+  onToggleComplete,
 }: WeeklyFocusBannerProps) {
   const [expanded, setExpanded] = useState(false);
   const [linkingGoalId, setLinkingGoalId] = useState<string | null>(null);
@@ -85,9 +87,13 @@ export function WeeklyFocusBanner({
 
             return (
               <div key={g.id} className={`weekly-banner-goal ${isDone ? 'done' : ''}`}>
-                <div className={`weekly-banner-check ${isDone ? 'checked' : ''}`}>
+                <button
+                  className={`weekly-banner-check ${isDone ? 'checked' : ''}`}
+                  onClick={() => onToggleComplete(g.id)}
+                  title={isDone ? 'Mark as incomplete' : 'Mark as complete'}
+                >
                   {isDone ? '✓' : '○'}
-                </div>
+                </button>
                 <div className="weekly-banner-goal-body">
                   <span className={`weekly-banner-goal-text ${isDone ? 'completed' : ''}`}>
                     {g.goal_text}

@@ -97,6 +97,7 @@ export default function App() {
     hasGoalsThisWeek,
     refetch: refetchWeeklyGoals,
     syncCompletion: syncWeeklyGoalCompletion,
+    toggleGoalCompletion,
   } = useWeeklyGoals(user?.id);
 
   // Sync weekly goal completion whenever todos change
@@ -1034,11 +1035,13 @@ export default function App() {
             weeklyGoals={weeklyGoals}
             onLinkGoal={async (goalId, todoId) => {
               await linkTodoToGoal(goalId, todoId);
-              refetchWeeklyGoals();
+              await refetchWeeklyGoals();
+              syncWeeklyGoalCompletion(todos);
             }}
             onUnlinkGoal={async (goalId, todoId) => {
               await unlinkTodoFromGoal(goalId, todoId);
-              refetchWeeklyGoals();
+              await refetchWeeklyGoals();
+              syncWeeklyGoalCompletion(todos);
             }}
           />
         ) : (
@@ -1078,12 +1081,15 @@ export default function App() {
                 }}
                 onLinkTask={async (goalId, todoId) => {
                   await linkTodoToGoal(goalId, todoId);
-                  refetchWeeklyGoals();
+                  await refetchWeeklyGoals();
+                  syncWeeklyGoalCompletion(todos);
                 }}
                 onUnlinkTask={async (goalId, todoId) => {
                   await unlinkTodoFromGoal(goalId, todoId);
-                  refetchWeeklyGoals();
+                  await refetchWeeklyGoals();
+                  syncWeeklyGoalCompletion(todos);
                 }}
+                onToggleComplete={toggleGoalCompletion}
               />
             )}
 

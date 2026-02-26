@@ -5127,10 +5127,23 @@ body {
   text-align: center;
   flex-shrink: 0;
   color: rgba(255, 255, 255, 0.25);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.weekly-banner-check:hover {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .weekly-banner-check.checked {
   color: #81C784;
+}
+
+.weekly-banner-check.checked:hover {
+  color: #a5d6a7;
 }
 
 .weekly-banner-goal-body {

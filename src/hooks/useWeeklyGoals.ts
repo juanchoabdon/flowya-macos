@@ -10,6 +10,7 @@ interface UseWeeklyGoalsReturn {
   progress: { completed: number; total: number };
   refetch: () => Promise<void>;
   syncCompletion: (todos: Todo[]) => void;
+  toggleGoalCompletion: (goalId: string) => void;
 }
 
 export function useWeeklyGoals(userId: string | undefined): UseWeeklyGoalsReturn {
@@ -68,6 +69,15 @@ export function useWeeklyGoals(userId: string | undefined): UseWeeklyGoalsReturn
     });
   }, []);
 
+  const toggleGoalCompletion = useCallback((goalId: string) => {
+    setGoals(prev => prev.map(g => {
+      if (g.id !== goalId) return g;
+      const newCompleted = !g.completed;
+      updateWeeklyGoalCompletion(goalId, newCompleted);
+      return { ...g, completed: newCompleted };
+    }));
+  }, []);
+
   const hasGoalsThisWeek = goals.length > 0;
   const completed = goals.filter(g => g.completed).length;
   const total = goals.length;
@@ -80,5 +90,6 @@ export function useWeeklyGoals(userId: string | undefined): UseWeeklyGoalsReturn
     progress: { completed, total },
     refetch: fetchGoals,
     syncCompletion,
+    toggleGoalCompletion,
   };
 }
