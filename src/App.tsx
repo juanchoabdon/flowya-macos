@@ -485,6 +485,7 @@ export default function App() {
         todos,
         spaces,
         scope,
+        weeklyGoals,
       );
       setAIResult(result);
     } catch (err) {
@@ -510,6 +511,7 @@ export default function App() {
         todos,
         spaces,
         scope,
+        weeklyGoals,
       );
       setAIResult(result);
     } catch (err) {

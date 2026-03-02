@@ -1,4 +1,4 @@
-import type { Todo, Space, AIAnalysisResult, AIRenameResult, AIWeeklyPlanResult, AIDuplicatesResult, Priority } from '../types';
+import type { Todo, Space, WeeklyGoal, AIAnalysisResult, AIRenameResult, AIWeeklyPlanResult, AIDuplicatesResult, Priority } from '../types';
 
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY as string;
 const MODEL = 'gpt-4o';
@@ -12,7 +12,8 @@ export async function prioritizeTasks(
   profile: AIProfile,
   tasks: Todo[],
   spaces: Space[],
-  scope: 'all' | string
+  scope: 'all' | string,
+  weeklyGoals: WeeklyGoal[] = [],
 ): Promise<AIAnalysisResult> {
   const spaceMap = Object.fromEntries(spaces.map(s => [s.id, s.name]));
 
@@ -36,6 +37,13 @@ export async function prioritizeTasks(
     ? 'all spaces'
     : `"${spaceMap[scope] || 'Unknown'}" space`;
 
+  const goalLinkedTaskIds = new Set<string>();
+  for (const goal of weeklyGoals) {
+    if (goal.completed) continue;
+    const ids = goal.linked_todo_ids?.length ? goal.linked_todo_ids : (goal.linked_todo_id ? [goal.linked_todo_id] : []);
+    for (const id of ids) goalLinkedTaskIds.add(id);
+  }
+
   const taskList = filteredTasks.map(t => ({
     id: t.id,
     text: t.text,
@@ -46,6 +54,7 @@ export async function prioritizeTasks(
     space: spaceMap[t.space_id] || 'Unknown',
     created_at: t.created_at,
     completed_at: t.completed_at,
+    linked_to_weekly_goal: goalLinkedTaskIds.has(t.id),
   }));
 
   const today = new Date().toLocaleDateString('en-US', {
@@ -70,6 +79,7 @@ Your job is to analyze their tasks in ${scopeLabel} and provide a prioritized ac
 - Impact based on the user's roles (what would a great ${Object.values(profile.roles)[0] || 'professional'} prioritize?)
 - IMPORTANT: ALL tasks with status "done" MUST be archived (action: "archive"). Done means completed — they should be cleaned up, no exceptions.
 - Tasks that have been in backlog for too long with no clear value should also be archived
+- CRITICAL: Tasks with "linked_to_weekly_goal": true are part of the user's active weekly goals. These tasks must NEVER be archived — they are key commitments for the week. Always set action to "keep" and prioritize them highly (P0 or P1).
 - Balance between work and personal life
 - Quick wins vs deep work
 
