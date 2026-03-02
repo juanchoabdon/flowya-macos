@@ -3559,32 +3559,21 @@ body {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
-.weekly-planning-top-actions {
-  position: absolute;
-  top: 12px; right: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.weekly-planning-top-actions .ai-onboarding-close {
-  position: static;
-}
-
 .weekly-planning-snooze {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.3);
   cursor: pointer;
   font-size: 11px;
-  padding: 4px 8px;
+  padding: 6px 12px;
   border-radius: 6px;
   transition: all var(--transition-fast);
+  margin-top: 4px;
 }
 
 .weekly-planning-snooze:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .ai-onboarding-close {

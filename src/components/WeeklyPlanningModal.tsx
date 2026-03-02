@@ -302,16 +302,9 @@ export function WeeklyPlanningModal({
   return (
     <div className="ai-onboarding-overlay" onClick={onDismiss}>
       <div className="ai-onboarding-modal" onClick={e => e.stopPropagation()}>
-        <div className="weekly-planning-top-actions">
-          {onSnooze && (
-            <button className="weekly-planning-snooze" onClick={onSnooze}>
-              Remind me later
-            </button>
-          )}
-          <button className="ai-onboarding-close" onClick={onDismiss}>
-            <CloseIcon />
-          </button>
-        </div>
+        <button className="ai-onboarding-close" onClick={onDismiss}>
+          <CloseIcon />
+        </button>
 
         {/* Progress dots */}
         <div className="ai-onboarding-progress">
@@ -342,6 +335,11 @@ export function WeeklyPlanningModal({
             >
               Let's plan
             </button>
+            {onSnooze && (
+              <button className="weekly-planning-snooze" onClick={onSnooze}>
+                Remind me later
+              </button>
+            )}
           </div>
         )}
 
@@ -391,6 +389,11 @@ export function WeeklyPlanningModal({
                 Plan this week
               </button>
             </div>
+            {onSnooze && (
+              <button className="weekly-planning-snooze" onClick={onSnooze}>
+                Remind me later
+              </button>
+            )}
           </div>
         )}
 
@@ -453,6 +456,11 @@ export function WeeklyPlanningModal({
                 {currentSpaceIndex < spaces.length - 1 ? 'Next space' : 'Plan my week'}
               </button>
             </div>
+            {onSnooze && (
+              <button className="weekly-planning-snooze" onClick={onSnooze}>
+                Remind me later
+              </button>
+            )}
           </div>
         )}
 

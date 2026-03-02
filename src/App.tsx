@@ -1257,7 +1257,7 @@ export default function App() {
           initialSpaceId={weeklyPlanInitialSpace}
           onPlan={handleWeeklyPlan}
           onAccept={handleAcceptWeeklyPlan}
-          onDismiss={() => { setShowWeeklyPlanning(false); setWeeklyPlanResult(null); setWeeklyPlanError(null); setWeeklyPlanInitialSpace(undefined); }}
+          onDismiss={snoozeWeeklyPlanning}
           onSnooze={snoozeWeeklyPlanning}
         />
       )}
