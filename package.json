@@ -1,6 +1,6 @@
 {
   "name": "flowya",
-  "version": "1.0.48",
+  "version": "1.0.49",
   "description": "A floating macOS productivity app with glassmorphism UI",
   "main": "dist-electron/electron/main.js",
   "author": "Flowya",
