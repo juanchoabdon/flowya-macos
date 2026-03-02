@@ -15,6 +15,7 @@ interface WeeklyPlanningModalProps {
   onPlan: (objectives: Array<{ spaceId: string; spaceName: string; goals: string[] }>) => void;
   onAccept: () => Promise<void> | void;
   onDismiss: () => void;
+  onSnooze?: () => void;
 }
 
 type Step = 'intro' | 'review' | 'goals' | 'results';
@@ -78,7 +79,10 @@ function getWeekLabel(): string {
   return `${monStr} – ${sunStr}`;
 }
 
-function getPlaceholder(index: number, spaceName: string): string {
+function getPlaceholder(index: number, spaceName: string, uncompletedGoals?: string[]): string {
+  if (uncompletedGoals && uncompletedGoals[index]) {
+    return uncompletedGoals[index];
+  }
   const lang = navigator.language?.startsWith('es') ? 'es' : 'en';
   const isPersonal = spaceName.toLowerCase() === 'personal';
   const placeholders = isPersonal
@@ -155,6 +159,7 @@ export function WeeklyPlanningModal({
   onPlan,
   onAccept,
   onDismiss,
+  onSnooze,
 }: WeeklyPlanningModalProps) {
   const lastWeekHadProgress = lastWeekGoals.length > 0 && lastWeekGoals.some(g => g.completed);
   const hasLastWeek = lastWeekHadProgress;
@@ -194,6 +199,13 @@ export function WeeklyPlanningModal({
 
   const currentSpace = spaces[currentSpaceIndex];
   const todoMap = Object.fromEntries(todos.map(t => [t.id, t]));
+
+  const uncompletedBySpace: Record<string, string[]> = {};
+  for (const space of spaces) {
+    uncompletedBySpace[space.id] = lastWeekGoals
+      .filter(g => g.space_id === space.id && !g.completed)
+      .map(g => g.goal_text);
+  }
 
   useEffect(() => {
     if (step === 'goals' && inputRefs.current[0]) {
@@ -290,9 +302,16 @@ export function WeeklyPlanningModal({
   return (
     <div className="ai-onboarding-overlay" onClick={onDismiss}>
       <div className="ai-onboarding-modal" onClick={e => e.stopPropagation()}>
-        <button className="ai-onboarding-close" onClick={onDismiss}>
-          <CloseIcon />
-        </button>
+        <div className="weekly-planning-top-actions">
+          {onSnooze && (
+            <button className="weekly-planning-snooze" onClick={onSnooze}>
+              Remind me later
+            </button>
+          )}
+          <button className="ai-onboarding-close" onClick={onDismiss}>
+            <CloseIcon />
+          </button>
+        </div>
 
         {/* Progress dots */}
         <div className="ai-onboarding-progress">
@@ -405,7 +424,7 @@ export function WeeklyPlanningModal({
                         ref={el => { inputRefs.current[i] = el; }}
                         type="text"
                         className="weekly-goal-input"
-                        placeholder={getPlaceholder(i, currentSpace.name)}
+                        placeholder={getPlaceholder(i, currentSpace.name, uncompletedBySpace[currentSpace.id])}
                         value={goal}
                         onChange={e => handleGoalChange(currentSpace.id, i, e.target.value)}
                         onKeyDown={e => {

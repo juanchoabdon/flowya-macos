@@ -133,16 +133,29 @@ export default function App() {
   // Weekly planning auto-trigger helpers
   const shouldShowWeeklyPlanning = useCallback(() => {
     const day = new Date().getDay();
-    if (day !== 0 && day !== 1) return false; // only Sunday (0) or Monday (1)
+    if (day !== 0 && day !== 1) return false;
     if (!aiIsSetup) return false;
     if (hasGoalsThisWeek) return false;
     const mondayStr = getMonday();
     const lastPlanned = localStorage.getItem('flowya_last_weekly_plan_date');
-    return lastPlanned !== mondayStr;
+    if (lastPlanned === mondayStr) return false;
+    const snoozedUntil = localStorage.getItem('flowya_weekly_plan_snoozed_until');
+    if (snoozedUntil && Date.now() < parseInt(snoozedUntil, 10)) return false;
+    return true;
   }, [aiIsSetup, hasGoalsThisWeek]);
 
   const markWeeklyPlanningDone = useCallback(() => {
     localStorage.setItem('flowya_last_weekly_plan_date', getMonday());
+    localStorage.removeItem('flowya_weekly_plan_snoozed_until');
+  }, []);
+
+  const snoozeWeeklyPlanning = useCallback(() => {
+    const twoHoursMs = 2 * 60 * 60 * 1000;
+    localStorage.setItem('flowya_weekly_plan_snoozed_until', String(Date.now() + twoHoursMs));
+    setShowWeeklyPlanning(false);
+    setWeeklyPlanResult(null);
+    setWeeklyPlanError(null);
+    setWeeklyPlanInitialSpace(undefined);
   }, []);
 
   const checkWeeklyPlanningAfterSummary = useCallback(() => {
@@ -1245,6 +1258,7 @@ export default function App() {
           onPlan={handleWeeklyPlan}
           onAccept={handleAcceptWeeklyPlan}
           onDismiss={() => { setShowWeeklyPlanning(false); setWeeklyPlanResult(null); setWeeklyPlanError(null); setWeeklyPlanInitialSpace(undefined); }}
+          onSnooze={snoozeWeeklyPlanning}
         />
       )}
 
