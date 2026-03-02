@@ -150,6 +150,11 @@ export interface WindowApi {
   aiChat: (payload: { apiKey: string; model: string; messages: Array<{ role: string; content: string }>; temperature: number }) => Promise<{ error: boolean; data?: unknown; status?: number; body?: string }>;
   resizeWindow: (width: number, height: number) => Promise<boolean>;
   resetWindowToDefault: () => Promise<boolean>;
+  enterPip: () => Promise<boolean>;
+  exitPip: () => Promise<boolean>;
+  onPipChanged: (callback: (pip: boolean) => void) => () => void;
+  pipStartDrag: (screenX: number, screenY: number) => Promise<void>;
+  pipDragMove: (screenX: number, screenY: number) => Promise<void>;
   getTheme: () => Promise<'dark' | 'light'>;
   onFocusChange: (callback: (focused: boolean) => void) => () => void;
   // Auto-updater

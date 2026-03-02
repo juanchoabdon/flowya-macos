@@ -47,6 +47,7 @@ export default function App() {
   const [streakParticles, setStreakParticles] = useState<{id: number; x: number; y: number; emoji: string}[]>([]);
   const [priorityFilter, setPriorityFilter] = useState<Priority | null>(null);
   const [focusDescription, setFocusDescription] = useState(false);
+  const [pipMode, setPipMode] = useState(false);
 
   // AI Prioritization state
   const [showAIOnboarding, setShowAIOnboarding] = useState(false);
@@ -113,9 +114,10 @@ export default function App() {
     if (!settingsLoading && settings && !settings.ai_setup_complete && !hasShownAIOnboarding.current && spaces.length > 0) {
       hasShownAIOnboarding.current = true;
       setAIEditMode(false);
+      exitPipIfNeeded();
       setShowAIOnboarding(true);
     }
-  }, [settingsLoading, settings, spaces.length]);
+  }, [settingsLoading, settings, spaces.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize analytics once
   useEffect(() => {
@@ -160,7 +162,7 @@ export default function App() {
 
   const checkWeeklyPlanningAfterSummary = useCallback(() => {
     if (shouldShowWeeklyPlanning()) {
-      setTimeout(() => setShowWeeklyPlanning(true), 400);
+      setTimeout(() => { exitPipIfNeeded(); setShowWeeklyPlanning(true); }, 400);
     }
   }, [shouldShowWeeklyPlanning]);
 
@@ -175,11 +177,12 @@ export default function App() {
         // AI Onboarding takes priority -- its own useEffect handles showing it
       } else if (shouldShowDailySummary()) {
         setTimeout(() => {
+          exitPipIfNeeded();
           analytics.trackViewDailySummary('morning');
           setShowDailySummary(true);
         }, 500);
       } else if (shouldShowWeeklyPlanning()) {
-        setTimeout(() => setShowWeeklyPlanning(true), 500);
+        setTimeout(() => { exitPipIfNeeded(); setShowWeeklyPlanning(true); }, 500);
       }
     }
     prevUserRef.current = user?.id;
@@ -244,17 +247,60 @@ export default function App() {
         if (focused && aiIsSetup) {
           if (shouldShowDailySummary()) {
             setTimeout(() => {
+              exitPipIfNeeded();
               analytics.trackViewDailySummary('morning');
               setShowDailySummary(true);
             }, 500);
           } else if (shouldShowWeeklyPlanning()) {
-            setTimeout(() => setShowWeeklyPlanning(true), 500);
+            setTimeout(() => { exitPipIfNeeded(); setShowWeeklyPlanning(true); }, 500);
           }
         }
       });
       return unsubscribe;
     }
   }, [aiIsSetup, shouldShowWeeklyPlanning]);
+
+  // Listen for PIP mode changes
+  useEffect(() => {
+    if (window.windowApi?.onPipChanged) {
+      return window.windowApi.onPipChanged((pip) => setPipMode(pip));
+    }
+  }, []);
+
+  const pipModeRef = useRef(pipMode);
+  pipModeRef.current = pipMode;
+  const exitPipIfNeeded = useCallback(() => {
+    if (pipModeRef.current) {
+      window.windowApi?.exitPip();
+    }
+  }, []);
+
+  const pipDragRef = useRef<{ x: number; y: number } | null>(null);
+  const pipDidDrag = useRef(false);
+  const handlePipMouseDown = useCallback((e: React.MouseEvent) => {
+    pipDragRef.current = { x: e.screenX, y: e.screenY };
+    pipDidDrag.current = false;
+    window.windowApi?.pipStartDrag(e.screenX, e.screenY);
+    const onMove = (ev: MouseEvent) => {
+      if (!pipDragRef.current) return;
+      const dx = ev.screenX - pipDragRef.current.x;
+      const dy = ev.screenY - pipDragRef.current.y;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        pipDidDrag.current = true;
+        window.windowApi?.pipDragMove(ev.screenX, ev.screenY);
+      }
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (!pipDidDrag.current) {
+        window.windowApi?.exitPip();
+      }
+      pipDragRef.current = null;
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, []);
 
   // Auto-switch filter only when space actually changes (not on refetch)
   const prevSpaceRef = useRef<string | null>(null);
@@ -459,9 +505,11 @@ export default function App() {
       // After first-time onboarding, chain into daily summary / weekly planning
       setTimeout(() => {
         if (shouldShowDailySummary()) {
+          exitPipIfNeeded();
           analytics.trackViewDailySummary('morning');
           setShowDailySummary(true);
         } else if (shouldShowWeeklyPlanning()) {
+          exitPipIfNeeded();
           setShowWeeklyPlanning(true);
         }
       }, 600);
@@ -995,6 +1043,32 @@ export default function App() {
     );
   }
 
+  if (pipMode) {
+    const inProgressCount = todos.filter(t => t.status === 'in_progress' && !t.archived).length;
+    const spaceColor = selectedSpace?.color || settings?.all_spaces_color || '#64B5F6';
+    return (
+      <div
+        className={`app-container pip-container ${!windowFocused ? 'unfocused' : ''}`}
+        style={{ background: `linear-gradient(135deg, ${spaceColor}D0 0%, ${spaceColor}90 50%, ${spaceColor}B8 100%)` }}
+        onMouseDown={handlePipMouseDown}
+      >
+        <div className="pip-bar">
+          <span className="pip-bar-title">{settings?.nickname || 'Flowya'}</span>
+          <span className="pip-bar-dot" style={{ background: spaceColor }} />
+          <span className="pip-bar-count">{inProgressCount} active</span>
+          {streakActive && (
+            <span className="pip-bar-streak">🔥 {streakCount}</span>
+          )}
+          <button className="pip-bar-expand" title="Expand">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M8.5 2H12V5.5M5.5 12H2V8.5M12 2L8 6M2 12L6 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`app-container ${!windowFocused ? 'unfocused' : ''}`}>
       <GlassBar
@@ -1021,6 +1095,7 @@ export default function App() {
         streakCount={streakCount}
         streakActive={streakActive}
         showFlame={showFlame}
+        onEnterPip={() => window.windowApi?.enterPip()}
       />
 
       <div className="main-content">

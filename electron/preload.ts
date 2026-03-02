@@ -70,6 +70,25 @@ const windowApi = {
     return () => ipcRenderer.removeListener('updater:downloaded', handler);
   },
   
+  // PIP mode
+  enterPip: (): Promise<boolean> =>
+    ipcRenderer.invoke('window:enterPip'),
+
+  exitPip: (): Promise<boolean> =>
+    ipcRenderer.invoke('window:exitPip'),
+
+  onPipChanged: (callback: (pip: boolean) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, pip: boolean) => callback(pip);
+    ipcRenderer.on('window:pipChanged', handler);
+    return () => ipcRenderer.removeListener('window:pipChanged', handler);
+  },
+
+  pipStartDrag: (screenX: number, screenY: number): Promise<void> =>
+    ipcRenderer.invoke('window:pipStartDrag', screenX, screenY),
+
+  pipDragMove: (screenX: number, screenY: number): Promise<void> =>
+    ipcRenderer.invoke('window:pipDragMove', screenX, screenY),
+
   // AI - proxy OpenAI calls through main process
   aiChat: (payload: { apiKey: string; model: string; messages: Array<{ role: string; content: string }>; temperature: number }): Promise<{ error: boolean; data?: unknown; status?: number; body?: string }> =>
     ipcRenderer.invoke('ai:chat', payload),

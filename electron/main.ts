@@ -68,6 +68,7 @@ function saveWindowState(state: WindowState): void {
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
 let glassViewId: number | null = null;
+let pipSavedBounds: WindowState | null = null;
 
 // Store original window bounds for restore
 let savedBounds: { x: number; y: number; width: number; height: number } | null = null;
@@ -348,6 +349,53 @@ function setupIPC(): void {
       return true;
     }
     return false;
+  });
+
+  // Enter PIP mode - shrink window to bottom-right corner
+  ipcMain.handle('window:enterPip', () => {
+    if (!mainWindow) return false;
+    pipSavedBounds = mainWindow.getBounds();
+    const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+    const pipWidth = 230;
+    const pipHeight = 48;
+    const pipX = screenWidth - pipWidth - 20;
+    const pipY = screenHeight - pipHeight - 12;
+    mainWindow.setMinimumSize(140, 50);
+    mainWindow.setBounds({ x: pipX, y: pipY, width: pipWidth, height: pipHeight }, true);
+    mainWindow.webContents.send('window:pipChanged', true);
+    return true;
+  });
+
+  // PIP drag - start drag tracking
+  let pipDragStart: { screenX: number; screenY: number; winX: number; winY: number } | null = null;
+  ipcMain.handle('window:pipStartDrag', (_event, screenX: number, screenY: number) => {
+    if (!mainWindow) return;
+    const [winX, winY] = mainWindow.getPosition();
+    pipDragStart = { screenX, screenY, winX, winY };
+  });
+
+  // PIP drag - move window
+  ipcMain.handle('window:pipDragMove', (_event, screenX: number, screenY: number) => {
+    if (!mainWindow || !pipDragStart) return;
+    const dx = screenX - pipDragStart.screenX;
+    const dy = screenY - pipDragStart.screenY;
+    mainWindow.setPosition(pipDragStart.winX + dx, pipDragStart.winY + dy);
+  });
+
+  // Exit PIP mode - restore previous window bounds
+  ipcMain.handle('window:exitPip', () => {
+    if (!mainWindow) return false;
+    mainWindow.setMinimumSize(280, 400);
+    if (pipSavedBounds) {
+      mainWindow.setBounds(pipSavedBounds, true);
+      saveWindowState(pipSavedBounds);
+      pipSavedBounds = null;
+    } else {
+      const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
+      mainWindow.setBounds({ x: screenWidth - 370, y: 60, width: 350, height: 340 }, true);
+    }
+    mainWindow.webContents.send('window:pipChanged', false);
+    return true;
   });
 
   // Refresh dock and floating (call after login)

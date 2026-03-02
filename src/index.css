@@ -146,6 +146,106 @@ body {
   display: none !important;
 }
 
+/* PIP (Picture-in-Picture) corner mode */
+.app-container.pip-container {
+  animation: pip-appear 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+  cursor: grab;
+  border-left: none !important;
+}
+
+.app-container.pip-container:active,
+.pip-bar:active {
+  cursor: grabbing;
+}
+
+.pip-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 14px;
+  height: 100%;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.pip-bar-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.pip-bar-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.7);
+  animation: pip-dot-pulse 2.5s ease-in-out infinite;
+}
+
+.pip-bar-count {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.pip-bar-streak {
+  font-size: 11px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.pip-bar-expand {
+  -webkit-app-region: no-drag;
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.pip-bar-expand:hover {
+  background: rgba(255, 255, 255, 0.35);
+  color: #fff;
+  transform: scale(1.1);
+}
+
+@keyframes pip-appear {
+  0% {
+    opacity: 0;
+    transform: scale(0.7) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes pip-dot-pulse {
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
+
+.pip-btn {
+  opacity: 0.6;
+}
+
+.pip-btn:hover {
+  opacity: 1;
+}
+
 /* ========================================
    DRAGGABLE TITLE BAR
    ======================================== */
@@ -521,6 +621,15 @@ body {
   background: #30D158;
   border-radius: 50%;
   animation: pulse-update 1.5s ease-in-out infinite;
+}
+
+.whats-new-dot {
+  width: 6px;
+  height: 6px;
+  background: #30D158;
+  border-radius: 50%;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 @keyframes pulse-update {

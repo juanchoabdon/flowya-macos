@@ -23,6 +23,7 @@ interface GlassBarProps {
   onAIPrioritize?: () => void;
   onEditAIProfile?: () => void;
   aiProfileSetup?: boolean;
+  onEnterPip?: () => void;
   streakCount?: number;
   streakActive?: boolean;
   showFlame?: boolean;
@@ -49,6 +50,7 @@ export function GlassBar({
   streakCount = 0,
   streakActive = false,
   showFlame = false,
+  onEnterPip,
 }: GlassBarProps) {
   const isAllSelected = selectedSpaceId === ALL_SPACES_ID;
   const [hasUnseenUpdates, markUpdatesSeen] = useHasUnseenUpdates();
@@ -390,28 +392,14 @@ export function GlassBar({
           <span className="ai-tooltip">AI Boost</span>
         </button>
 
-        {/* What's New button */}
-        <button 
-          className={`icon-btn info-btn ${hasUnseenUpdates ? 'has-badge' : ''}`}
-          onClick={() => {
-            analytics.trackViewWhatsNew();
-            markUpdatesSeen();
-            onOpenWhatsNew?.();
-          }}
-          title="What's New"
-        >
-          <InfoIcon />
-          {hasUnseenUpdates && <span className="info-badge" />}
-        </button>
-        
         <div className="dropdown" ref={accountMenuRef}>
           <button 
-            className={`icon-btn account-btn ${updateAvailable ? 'has-update' : ''}`}
+            className={`icon-btn account-btn ${updateAvailable ? 'has-update' : ''} ${hasUnseenUpdates ? 'has-badge' : ''}`}
             onClick={() => setAccountMenuOpen(!accountMenuOpen)}
             title={updateAvailable ? `Update v${updateAvailable} available` : 'Settings'}
           >
             <SettingsIcon />
-            {updateAvailable && <span className="update-dot" />}
+            {(updateAvailable || hasUnseenUpdates) && <span className="update-dot" />}
           </button>
           
           {accountMenuOpen && (
@@ -452,6 +440,20 @@ export function GlassBar({
                   <span>Edit AI Profile</span>
                 </div>
               )}
+
+              <div
+                className={`dropdown-item ${hasUnseenUpdates ? 'has-new-badge' : ''}`}
+                onClick={() => {
+                  analytics.trackViewWhatsNew();
+                  markUpdatesSeen();
+                  onOpenWhatsNew?.();
+                  setAccountMenuOpen(false);
+                }}
+              >
+                <InfoIcon />
+                <span>What's New</span>
+                {hasUnseenUpdates && <span className="whats-new-dot" />}
+              </div>
               
               {onSignOut && (
                 <div
@@ -497,6 +499,15 @@ export function GlassBar({
             </div>
           )}
         </div>
+
+        {/* PIP / Corner mode button */}
+        <button
+          className="icon-btn pip-btn"
+          onClick={() => onEnterPip?.()}
+          title="Minimize to corner"
+        >
+          <PipIcon />
+        </button>
       </div>
     </div>
   );
@@ -640,6 +651,15 @@ function InfoIcon() {
       <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3"/>
       <path d="M8 7V11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
       <circle cx="8" cy="5" r="0.75" fill="currentColor"/>
+    </svg>
+  );
+}
+
+function PipIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <rect x="1" y="1" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+      <rect x="7.5" y="5.5" width="5" height="4" rx="1" fill="currentColor" opacity="0.7"/>
     </svg>
   );
 }
