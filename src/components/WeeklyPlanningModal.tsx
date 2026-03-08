@@ -320,7 +320,7 @@ export function WeeklyPlanningModal({
         {step === 'intro' && (
           <div className="ai-onboarding-step">
             <div className="ai-onboarding-icon">
-              <SparkleIcon size={48} />
+              <SparkleIcon size={32} />
             </div>
             <h2 className="ai-onboarding-title">Weekly Planning</h2>
             <p className="ai-onboarding-subtitle">
@@ -346,24 +346,21 @@ export function WeeklyPlanningModal({
         {/* STEP: Last Week Review */}
         {step === 'review' && (
           <div className="ai-onboarding-step">
-            <div className="ai-onboarding-icon">
-              <SparkleIcon size={36} />
-            </div>
-            <h2 className="ai-onboarding-title">Last week</h2>
-            <p className="ai-onboarding-subtitle">
-              You completed <strong>{lastWeekCompleted}</strong> of <strong>{lastWeekTotal}</strong> goals
+            <h2 className="ai-onboarding-title" style={{ fontSize: '16px', marginBottom: '2px' }}>Last week</h2>
+            <p className="ai-onboarding-subtitle" style={{ marginBottom: '8px' }}>
+              {lastWeekCompleted}/{lastWeekTotal} goals completed
             </p>
 
-            <div className="ai-onboarding-step-scroll">
-              <div className="weekly-review-progress">
-                <div className="weekly-review-bar">
-                  <div
-                    className="weekly-review-bar-fill"
-                    style={{ width: `${lastWeekTotal > 0 ? (lastWeekCompleted / lastWeekTotal) * 100 : 0}%` }}
-                  />
-                </div>
+            <div className="weekly-review-progress" style={{ marginBottom: '8px' }}>
+              <div className="weekly-review-bar">
+                <div
+                  className="weekly-review-bar-fill"
+                  style={{ width: `${lastWeekTotal > 0 ? (lastWeekCompleted / lastWeekTotal) * 100 : 0}%` }}
+                />
               </div>
+            </div>
 
+            <div className="ai-onboarding-step-scroll">
               <div className="weekly-review-list">
                 {lastWeekBySpace.map(({ space, goals }) => (
                   <div key={space.id} className="weekly-review-space">

@@ -4776,13 +4776,13 @@ body {
 .weekly-review-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .weekly-review-space {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .weekly-review-space-header {
@@ -5124,6 +5124,80 @@ body {
 /* ============================================
    Weekly Focus Banner
    ============================================ */
+
+/* Weekly Plan Nudge */
+
+.weekly-nudge {
+  margin: 0 0 4px;
+  width: 100%;
+  background: rgba(100, 181, 246, 0.06);
+  border: 1px solid rgba(100, 181, 246, 0.15);
+  border-radius: 10px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  animation: fadeIn 0.3s ease-out;
+  font-family: inherit;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.weekly-nudge:hover {
+  background: rgba(100, 181, 246, 0.12);
+  border-color: rgba(100, 181, 246, 0.25);
+}
+
+.weekly-nudge-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.weekly-nudge-icon {
+  color: #64B5F6;
+  flex-shrink: 0;
+}
+
+.weekly-nudge-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.weekly-nudge-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.weekly-nudge-desc {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.weekly-nudge-arrow {
+  color: #64B5F6;
+  font-size: 14px;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.weekly-nudge:hover .weekly-nudge-arrow {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+/* Weekly Focus Banner */
 
 .weekly-banner {
   margin: 0 0 4px;

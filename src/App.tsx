@@ -18,6 +18,7 @@ import { AIHubModal } from './components/AIHubModal';
 import { AIRenameModal } from './components/AIRenameModal';
 import { WeeklyPlanningModal } from './components/WeeklyPlanningModal';
 import { WeeklyFocusBanner } from './components/WeeklyFocusBanner';
+import { WeeklyPlanNudge } from './components/WeeklyPlanNudge';
 import { useStreak } from './hooks/useStreak';
 import { useAIProfile } from './hooks/useAIProfile';
 import { useWeeklyGoals } from './hooks/useWeeklyGoals';
@@ -158,8 +159,6 @@ export default function App() {
 
   // Weekly planning auto-trigger helpers
   const shouldShowWeeklyPlanning = useCallback(() => {
-    const day = new Date().getDay();
-    if (day !== 0 && day !== 1) return false;
     if (!aiIsSetup) return false;
     if (hasGoalsThisWeek) return false;
     const mondayStr = getMonday();
@@ -167,8 +166,13 @@ export default function App() {
     if (lastPlanned === mondayStr) return false;
     const snoozedUntil = localStorage.getItem('flowya_weekly_plan_snoozed_until');
     if (snoozedUntil && Date.now() < parseInt(snoozedUntil, 10)) return false;
-    return true;
-  }, [aiIsSetup, hasGoalsThisWeek]);
+
+    const day = new Date().getDay();
+    const isSunOrMon = day === 0 || day === 1;
+    const missedLastWeek = lastWeekGoals.length === 0;
+
+    return isSunOrMon || missedLastWeek;
+  }, [aiIsSetup, hasGoalsThisWeek, lastWeekGoals.length]);
 
   const markWeeklyPlanningDone = useCallback(() => {
     localStorage.setItem('flowya_last_weekly_plan_date', getMonday());
@@ -1181,6 +1185,15 @@ export default function App() {
               onPriorityFilterChange={setPriorityFilter}
               urgencyByStatus={urgencyByStatus}
             />
+
+            {!hasGoalsThisWeek && aiIsSetup && (
+              <WeeklyPlanNudge onPlan={() => {
+                setWeeklyPlanResult(null);
+                setWeeklyPlanError(null);
+                setWeeklyPlanInitialSpace(undefined);
+                setShowWeeklyPlanning(true);
+              }} />
+            )}
 
             {hasGoalsThisWeek && (
               <WeeklyFocusBanner
