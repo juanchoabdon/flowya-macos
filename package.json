@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@amplitude/analytics-browser": "^2.34.0",
+    "@anthropic-ai/sdk": "^0.78.0",
     "@supabase/supabase-js": "^2.39.0",
     "@tiptap/extension-link": "^3.18.0",
     "@tiptap/extension-placeholder": "^3.18.0",
