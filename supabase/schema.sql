@@ -71,3 +71,50 @@ CREATE POLICY "Allow all on settings" ON settings FOR ALL USING (true);
 -- INSERT INTO todos (space_id, text)
 -- SELECT id, 'Welcome to NeosTasks! ✨'
 -- FROM spaces WHERE name = 'Personal';
+
+-- ============================================
+-- DEVICE TOKENS TABLE (push notifications)
+-- ============================================
+CREATE TABLE IF NOT EXISTS device_tokens (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    token TEXT NOT NULL,
+    platform TEXT NOT NULL DEFAULT 'ios' CHECK (platform IN ('ios', 'android', 'web')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, platform)
+);
+
+CREATE INDEX IF NOT EXISTS idx_device_tokens_user_id ON device_tokens(user_id);
+
+ALTER TABLE device_tokens ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own device tokens"
+    ON device_tokens
+    FOR ALL
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+-- ============================================
+-- RECURRING TASKS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS recurring_tasks (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    space_id UUID NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    days INT[] NOT NULL,
+    enabled BOOLEAN DEFAULT TRUE,
+    last_created_date TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_recurring_tasks_user_id ON recurring_tasks(user_id);
+
+ALTER TABLE recurring_tasks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own recurring tasks"
+    ON recurring_tasks
+    FOR ALL
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);

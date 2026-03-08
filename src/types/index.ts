@@ -133,6 +133,18 @@ export interface AIWeeklyPlanResult {
   reprioritizations: AIRecommendation[];
 }
 
+// Recurring Task types
+export interface RecurringTask {
+  id: string;
+  user_id: string;
+  space_id: string;
+  text: string;
+  days: number[];        // 0=Sun, 1=Mon, ..., 6=Sat
+  enabled: boolean;
+  last_created_date: string | null;
+  created_at: string;
+}
+
 // Filter types
 export type FilterType = 'all' | 'backlog' | 'in_progress' | 'done';
 

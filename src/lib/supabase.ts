@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Space, Todo, Settings, WeeklyGoal } from '../types';
+import type { Space, Todo, Settings, WeeklyGoal, RecurringTask } from '../types';
 import { SPACE_COLORS } from '../types';
 
 // Get Supabase credentials from environment variables
@@ -511,6 +511,116 @@ export async function updateWeeklyGoalCompletion(goalId: string, completed: bool
   if (error) {
     console.error('Error updating weekly goal completion:', error);
   }
+}
+
+// ============ Recurring Tasks API ============
+
+export async function getRecurringTasks(userId: string): Promise<RecurringTask[]> {
+  const { data, error } = await supabase
+    .from('recurring_tasks')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching recurring tasks:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function createRecurringTask(
+  task: { user_id: string; space_id: string; text: string; days: number[] }
+): Promise<RecurringTask> {
+  const { data, error } = await supabase
+    .from('recurring_tasks')
+    .insert({ ...task, enabled: true })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating recurring task:', error);
+    throw error;
+  }
+  return data;
+}
+
+export async function updateRecurringTask(
+  id: string,
+  updates: Partial<Pick<RecurringTask, 'text' | 'space_id' | 'days' | 'enabled'>>
+): Promise<RecurringTask> {
+  const { data, error } = await supabase
+    .from('recurring_tasks')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating recurring task:', error);
+    throw error;
+  }
+  return data;
+}
+
+export async function deleteRecurringTask(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('recurring_tasks')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting recurring task:', error);
+    throw error;
+  }
+}
+
+export async function markRecurringTaskCreated(id: string, date: string): Promise<void> {
+  const { error } = await supabase
+    .from('recurring_tasks')
+    .update({ last_created_date: date })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error marking recurring task created:', error);
+  }
+}
+
+export async function createTodoAtTop(spaceId: string, text: string): Promise<Todo> {
+  // Shift all existing backlog tasks' positions up by 1
+  const { data: existing } = await supabase
+    .from('todos')
+    .select('id, position')
+    .eq('space_id', spaceId)
+    .eq('archived', false)
+    .order('position', { ascending: true });
+
+  if (existing && existing.length > 0) {
+    for (const todo of existing) {
+      await supabase
+        .from('todos')
+        .update({ position: todo.position + 1 })
+        .eq('id', todo.id);
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('todos')
+    .insert({
+      space_id: spaceId,
+      text,
+      status: 'backlog',
+      priority: 'P0',
+      position: 0,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating todo at top:', error);
+    throw error;
+  }
+  return data;
 }
 
 // ============================================

@@ -22,6 +22,9 @@ import { useStreak } from './hooks/useStreak';
 import { useAIProfile } from './hooks/useAIProfile';
 import { useWeeklyGoals } from './hooks/useWeeklyGoals';
 import { AIDuplicatesModal } from './components/AIDuplicatesModal';
+import { RecurringTasksModal } from './components/RecurringTasksModal';
+import { OnboardingModal } from './components/OnboardingModal';
+import { useRecurringTasks } from './hooks/useRecurringTasks';
 import { prioritizeTasks, renameTasks, planWeek, findDuplicates } from './lib/openai';
 import { upsertWeeklyGoals, getMonday, linkTodoToGoal, unlinkTodoFromGoal } from './lib/supabase';
 import type { FilterType, Todo, Priority, AIAnalysisResult, AIRenameResult, AIRenameSuggestion, AIWeeklyPlanResult, AIDuplicatesResult } from './types';
@@ -73,6 +76,12 @@ export default function App() {
   const [weeklyPlanLoading, setWeeklyPlanLoading] = useState(false);
   const [weeklyPlanError, setWeeklyPlanError] = useState<string | null>(null);
 
+  // Recurring Tasks state
+  const [showRecurringTasks, setShowRecurringTasks] = useState(false);
+
+  // New user onboarding state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   // Duplicates state
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [dupResult, setDupResult] = useState<AIDuplicatesResult | null>(null);
@@ -101,6 +110,13 @@ export default function App() {
     toggleGoalCompletion,
   } = useWeeklyGoals(user?.id);
 
+  const {
+    recurringTasks,
+    createRecurringTask: createRecurring,
+    updateRecurringTask: updateRecurring,
+    deleteRecurringTask: deleteRecurring,
+  } = useRecurringTasks(user?.id, refetchTodos);
+
   // Sync weekly goal completion whenever todos change
   useEffect(() => {
     if (weeklyGoals.length > 0 && todos.length > 0) {
@@ -108,16 +124,24 @@ export default function App() {
     }
   }, [todos, weeklyGoals.length, syncWeeklyGoalCompletion]);
 
-  // Auto-show AI onboarding if user hasn't completed setup
+  // Detect fresh signup: account created less than 24 hours ago
+  const isNewAccount = useCallback(() => {
+    if (!user?.created_at) return false;
+    const createdAt = new Date(user.created_at).getTime();
+    return Date.now() - createdAt < 24 * 60 * 60 * 1000;
+  }, [user?.created_at]);
+
+  // Auto-show AI onboarding if user hasn't completed setup (skip for brand-new accounts)
   const hasShownAIOnboarding = useRef(false);
   useEffect(() => {
+    if (isNewAccount()) return;
     if (!settingsLoading && settings && !settings.ai_setup_complete && !hasShownAIOnboarding.current && spaces.length > 0) {
       hasShownAIOnboarding.current = true;
       setAIEditMode(false);
       exitPipIfNeeded();
       setShowAIOnboarding(true);
     }
-  }, [settingsLoading, settings, spaces.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settingsLoading, settings, spaces.length, isNewAccount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize analytics once
   useEffect(() => {
@@ -168,35 +192,40 @@ export default function App() {
 
   // Refresh dock icon after login and check auto-trigger chain:
   // AI Onboarding (highest) > Daily Summary > Weekly Planning (lowest)
+  // Skip all auto-popups for brand-new accounts
   const prevUserRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (prevUserRef.current === undefined && user?.id) {
       window.windowApi?.refreshDock();
 
-      if (!aiIsSetup) {
-        // AI Onboarding takes priority -- its own useEffect handles showing it
-      } else if (shouldShowDailySummary()) {
-        setTimeout(() => {
-          exitPipIfNeeded();
-          analytics.trackViewDailySummary('morning');
-          setShowDailySummary(true);
-        }, 500);
-      } else if (shouldShowWeeklyPlanning()) {
-        setTimeout(() => { exitPipIfNeeded(); setShowWeeklyPlanning(true); }, 500);
+      if (isNewAccount()) {
+        setTimeout(() => setShowOnboarding(true), 600);
+      } else {
+        if (!aiIsSetup) {
+          // AI Onboarding takes priority -- its own useEffect handles showing it
+        } else if (shouldShowDailySummary()) {
+          setTimeout(() => {
+            exitPipIfNeeded();
+            analytics.trackViewDailySummary('morning');
+            setShowDailySummary(true);
+          }, 500);
+        } else if (shouldShowWeeklyPlanning()) {
+          setTimeout(() => { exitPipIfNeeded(); setShowWeeklyPlanning(true); }, 500);
+        }
       }
     }
     prevUserRef.current = user?.id;
-  }, [user?.id, aiIsSetup, shouldShowWeeklyPlanning]);
+  }, [user?.id, aiIsSetup, shouldShowWeeklyPlanning, isNewAccount]);
 
-  // Create default space if none exist
+  // Create default space if none exist (skip if onboarding is handling it)
   useEffect(() => {
-    if (!spacesLoading && spaces.length === 0) {
+    if (!spacesLoading && spaces.length === 0 && !showOnboarding && !isNewAccount()) {
       createSpace('Personal').then(space => {
         if (space) setSelectedSpaceId(space.id);
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spacesLoading, spaces.length]);
+  }, [spacesLoading, spaces.length, showOnboarding]);
 
   // Save last selected space
   useEffect(() => {
@@ -244,7 +273,7 @@ export default function App() {
     if (window.windowApi?.onFocusChange) {
       const unsubscribe = window.windowApi.onFocusChange((focused) => {
         setWindowFocused(focused);
-        if (focused && aiIsSetup) {
+        if (focused && aiIsSetup && !isNewAccount()) {
           if (shouldShowDailySummary()) {
             setTimeout(() => {
               exitPipIfNeeded();
@@ -1096,6 +1125,7 @@ export default function App() {
         streakActive={streakActive}
         showFlame={showFlame}
         onEnterPip={() => window.windowApi?.enterPip()}
+        onOpenRecurringTasks={() => setShowRecurringTasks(true)}
       />
 
       <div className="main-content">
@@ -1244,6 +1274,28 @@ export default function App() {
       <WhatsNewModal
         isOpen={showWhatsNew}
         onClose={() => setShowWhatsNew(false)}
+      />
+
+      {/* Recurring Tasks Modal */}
+      <RecurringTasksModal
+        isOpen={showRecurringTasks}
+        onClose={() => setShowRecurringTasks(false)}
+        recurringTasks={recurringTasks}
+        spaces={spaces}
+        onCreate={createRecurring}
+        onUpdate={updateRecurring}
+        onDelete={deleteRecurring}
+      />
+
+      {/* New User Onboarding */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+        spaces={spaces}
+        onCreateSpace={createSpace}
+        onDeleteSpace={deleteSpace}
+        onSaveAIProfile={saveAIProfile}
+        onCreateTodo={createTodo}
       />
 
       {/* Daily Summary Modal (morning greeting) */}

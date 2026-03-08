@@ -24,6 +24,7 @@ interface GlassBarProps {
   onEditAIProfile?: () => void;
   aiProfileSetup?: boolean;
   onEnterPip?: () => void;
+  onOpenRecurringTasks?: () => void;
   streakCount?: number;
   streakActive?: boolean;
   showFlame?: boolean;
@@ -51,6 +52,7 @@ export function GlassBar({
   streakActive = false,
   showFlame = false,
   onEnterPip,
+  onOpenRecurringTasks,
 }: GlassBarProps) {
   const isAllSelected = selectedSpaceId === ALL_SPACES_ID;
   const [hasUnseenUpdates, markUpdatesSeen] = useHasUnseenUpdates();
@@ -392,6 +394,15 @@ export function GlassBar({
           <span className="ai-tooltip">AI Boost</span>
         </button>
 
+        {/* Recurring / Daily Tasks button */}
+        <button
+          className="icon-btn recurring-btn"
+          onClick={() => onOpenRecurringTasks?.()}
+          title="Daily Tasks"
+        >
+          <RecurringIcon />
+        </button>
+
         <div className="dropdown" ref={accountMenuRef}>
           <button 
             className={`icon-btn account-btn ${updateAvailable ? 'has-update' : ''} ${hasUnseenUpdates ? 'has-badge' : ''}`}
@@ -660,6 +671,27 @@ function PipIcon() {
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <rect x="1" y="1" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
       <rect x="7.5" y="5.5" width="5" height="4" rx="1" fill="currentColor" opacity="0.7"/>
+    </svg>
+  );
+}
+
+function RecurringIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M11.5 7.5A4.5 4.5 0 1 1 7 3H10"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 1L10 3L8 5"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
