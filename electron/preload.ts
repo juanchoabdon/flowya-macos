@@ -92,6 +92,22 @@ const windowApi = {
   // AI - proxy OpenAI calls through main process
   aiChat: (payload: { apiKey: string; model: string; messages: Array<{ role: string; content: string }>; temperature: number }): Promise<{ error: boolean; data?: unknown; status?: number; body?: string }> =>
     ipcRenderer.invoke('ai:chat', payload),
+
+  // Claude Computer Use agent
+  agentStart: (payload: { apiKey: string; taskText: string; taskDescription?: string }): Promise<{ error: boolean; message?: string }> =>
+    ipcRenderer.invoke('agent:start', payload),
+
+  agentStop: (): Promise<boolean> =>
+    ipcRenderer.invoke('agent:stop'),
+
+  agentGetStatus: (): Promise<string> =>
+    ipcRenderer.invoke('agent:getStatus'),
+
+  onAgentEvent: (callback: (event: { type: string; status: string; message?: string; screenshot?: string; action?: { name: string; coordinate?: [number, number]; text?: string }; iteration?: number; maxIterations?: number }) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, agentEvent: Parameters<typeof callback>[0]) => callback(agentEvent);
+    ipcRenderer.on('agent:event', handler);
+    return () => ipcRenderer.removeListener('agent:event', handler);
+  },
 };
 
 // Expose the API to the renderer process

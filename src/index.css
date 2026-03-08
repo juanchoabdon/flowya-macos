@@ -6221,3 +6221,310 @@ body {
   margin-bottom: 12px;
   animation: pip-appear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+/* ===== Agent Execute Button ===== */
+
+.agent-execute-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 14px;
+  margin: 8px 0 12px;
+  background: rgba(147, 130, 255, 0.08);
+  border: 1px solid rgba(147, 130, 255, 0.2);
+  border-radius: 10px;
+  color: #B8A9FF;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.agent-execute-btn:hover:not(:disabled) {
+  background: rgba(147, 130, 255, 0.15);
+  border-color: rgba(147, 130, 255, 0.35);
+  color: #D0C4FF;
+}
+
+.agent-execute-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== Agent Overlay ===== */
+
+.agent-overlay {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  background: rgba(20, 20, 24, 0.95);
+  border: 1px solid rgba(147, 130, 255, 0.25);
+  border-radius: 14px;
+  padding: 16px;
+  z-index: 10000;
+  backdrop-filter: blur(20px);
+  max-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: agent-slide-up 0.25s ease-out;
+}
+
+@keyframes agent-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.agent-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.agent-overlay-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #B8A9FF;
+}
+
+.agent-overlay-title svg {
+  flex-shrink: 0;
+}
+
+.agent-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.agent-status-dot.running {
+  background: #30D158;
+  animation: agent-pulse 1.5s ease-in-out infinite;
+}
+
+.agent-status-dot.completed { background: #30D158; }
+.agent-status-dot.error { background: #FF453A; }
+.agent-status-dot.cancelled { background: #8E8E93; }
+.agent-status-dot.starting { background: #FF9F0A; animation: agent-pulse 1s ease-in-out infinite; }
+
+@keyframes agent-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.agent-stop-btn {
+  background: rgba(255, 69, 58, 0.15);
+  border: 1px solid rgba(255, 69, 58, 0.3);
+  border-radius: 8px;
+  color: #FF453A;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.agent-stop-btn:hover {
+  background: rgba(255, 69, 58, 0.25);
+  border-color: rgba(255, 69, 58, 0.5);
+}
+
+.agent-dismiss-btn {
+  background: rgba(142, 142, 147, 0.15);
+  border: 1px solid rgba(142, 142, 147, 0.3);
+  border-radius: 8px;
+  color: #8E8E93;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.agent-dismiss-btn:hover {
+  background: rgba(142, 142, 147, 0.25);
+}
+
+.agent-overlay-message {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.agent-overlay-thinking {
+  font-size: 11px;
+  color: rgba(147, 130, 255, 0.6);
+  font-style: italic;
+  line-height: 1.4;
+  max-height: 40px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-overlay-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.agent-progress-bar {
+  flex: 1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.agent-progress-fill {
+  height: 100%;
+  background: #B8A9FF;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.agent-overlay-actions {
+  max-height: 80px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.agent-action-item {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: 'SF Mono', 'Menlo', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-overlay-screenshot {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.agent-overlay-screenshot img {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-height: 120px;
+  object-fit: contain;
+  background: #000;
+}
+
+/* ===== Agent Confirm Dialog ===== */
+
+.agent-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.agent-confirm-dialog {
+  background: rgba(30, 30, 36, 0.98);
+  border: 1px solid rgba(147, 130, 255, 0.2);
+  border-radius: 14px;
+  padding: 20px;
+  max-width: 320px;
+  width: 100%;
+  backdrop-filter: blur(20px);
+}
+
+.agent-confirm-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.agent-confirm-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.agent-confirm-warning {
+  font-size: 11px;
+  color: #FF9F0A;
+  background: rgba(255, 159, 10, 0.1);
+  border: 1px solid rgba(255, 159, 10, 0.2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.agent-confirm-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.agent-confirm-cancel {
+  background: rgba(142, 142, 147, 0.15);
+  border: 1px solid rgba(142, 142, 147, 0.3);
+  border-radius: 8px;
+  color: #8E8E93;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.agent-confirm-start {
+  background: rgba(147, 130, 255, 0.2);
+  border: 1px solid rgba(147, 130, 255, 0.4);
+  border-radius: 8px;
+  color: #B8A9FF;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.agent-confirm-start:hover {
+  background: rgba(147, 130, 255, 0.3);
+  border-color: rgba(147, 130, 255, 0.5);
+}
+
+.agent-api-key-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #fff;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+
+.agent-api-key-input:focus {
+  border-color: rgba(147, 130, 255, 0.4);
+}
+
+.agent-api-key-input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}

@@ -145,6 +145,29 @@ export interface RecurringTask {
   created_at: string;
 }
 
+// Agent types (renderer side)
+export type AgentStatusType =
+  | 'idle'
+  | 'starting'
+  | 'running'
+  | 'completed'
+  | 'error'
+  | 'cancelled';
+
+export interface AgentEventPayload {
+  type: 'status' | 'thinking' | 'action' | 'screenshot' | 'error' | 'done';
+  status: AgentStatusType;
+  message?: string;
+  screenshot?: string;
+  action?: {
+    name: string;
+    coordinate?: [number, number];
+    text?: string;
+  };
+  iteration?: number;
+  maxIterations?: number;
+}
+
 // Filter types
 export type FilterType = 'all' | 'backlog' | 'in_progress' | 'done';
 
@@ -173,6 +196,11 @@ export interface WindowApi {
   installUpdate: () => Promise<void>;
   onUpdateAvailable: (callback: (version: string) => void) => () => void;
   onUpdateDownloaded: (callback: (version: string) => void) => () => void;
+  // Claude Computer Use agent
+  agentStart: (payload: { apiKey: string; taskText: string; taskDescription?: string }) => Promise<{ error: boolean; message?: string }>;
+  agentStop: () => Promise<boolean>;
+  agentGetStatus: () => Promise<string>;
+  onAgentEvent: (callback: (event: AgentEventPayload) => void) => () => void;
 }
 
 // Extend Window interface to include our API

@@ -12,6 +12,7 @@ import {
 import * as path from 'path';
 import * as fs from 'fs';
 import { autoUpdater } from 'electron-updater';
+import { AgentLoop } from './agent/agent-loop';
 
 // Disable Chromium's swipe navigation to prevent macOS space switching
 app.commandLine.appendSwitch('disable-features', 'TouchpadOverscrollHistoryNavigation');
@@ -69,6 +70,9 @@ let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
 let glassViewId: number | null = null;
 let pipSavedBounds: WindowState | null = null;
+
+// Agent state
+let activeAgent: AgentLoop | null = null;
 
 // Store original window bounds for restore
 let savedBounds: { x: number; y: number; width: number; height: number } | null = null;
@@ -149,7 +153,7 @@ function createWindow(): void {
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
           "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
           "font-src 'self' https://fonts.gstatic.com data:; " +
-          "connect-src 'self' https://*.amplitude.com https://*.supabase.co wss://*.supabase.co; " +
+          "connect-src 'self' https://*.amplitude.com https://*.supabase.co wss://*.supabase.co https://api.anthropic.com; " +
           "img-src 'self' data: blob:;"
         ]
       }
@@ -455,6 +459,47 @@ function setupIPC(): void {
     return true;
   });
 
+  // Claude Computer Use agent
+  ipcMain.handle('agent:start', async (_event, payload: { apiKey: string; taskText: string; taskDescription?: string }) => {
+    if (activeAgent && activeAgent.getStatus() === 'running') {
+      return { error: true, message: 'Agent is already running.' };
+    }
+
+    const { width: displayWidth, height: displayHeight } = screen.getPrimaryDisplay().size;
+    // Scale down for retina — use logical resolution
+    const scaleFactor = screen.getPrimaryDisplay().scaleFactor;
+    const logicalWidth = Math.round(displayWidth / scaleFactor) || 1280;
+    const logicalHeight = Math.round(displayHeight / scaleFactor) || 800;
+
+    activeAgent = new AgentLoop(payload.apiKey, {
+      displayWidth: logicalWidth,
+      displayHeight: logicalHeight,
+    });
+
+    activeAgent.on('agent-event', (event) => {
+      mainWindow?.webContents.send('agent:event', event);
+    });
+
+    // Run the agent loop (non-blocking — runs in background)
+    activeAgent.run(payload.taskText, payload.taskDescription).catch((err) => {
+      console.error('Agent loop error:', err);
+    });
+
+    return { error: false };
+  });
+
+  ipcMain.handle('agent:stop', () => {
+    if (activeAgent) {
+      activeAgent.cancel();
+      activeAgent = null;
+    }
+    return true;
+  });
+
+  ipcMain.handle('agent:getStatus', () => {
+    return activeAgent?.getStatus() ?? 'idle';
+  });
+
   // OpenAI API proxy - bypasses renderer CSP restrictions
   ipcMain.handle('ai:chat', async (_event, payload: { apiKey: string; model: string; messages: Array<{ role: string; content: string }>; temperature: number }) => {
     try {
@@ -600,6 +645,25 @@ function registerGlobalShortcut(): void {
 
   if (!registered) {
     console.error(`Failed to register global shortcut: ${shortcut}`);
+  }
+
+  // Emergency stop for agent — Cmd+Shift+Escape
+  const emergencyStop = 'CommandOrControl+Shift+Escape';
+  const emergencyRegistered = globalShortcut.register(emergencyStop, () => {
+    if (activeAgent) {
+      console.log('Emergency stop: cancelling agent.');
+      activeAgent.cancel();
+      activeAgent = null;
+      mainWindow?.webContents.send('agent:event', {
+        type: 'done',
+        status: 'cancelled',
+        message: 'Agent stopped via emergency hotkey (Cmd+Shift+Escape).',
+      });
+    }
+  });
+
+  if (!emergencyRegistered) {
+    console.error(`Failed to register emergency stop shortcut: ${emergencyStop}`);
   }
 }
 

@@ -26,6 +26,8 @@ import { AIDuplicatesModal } from './components/AIDuplicatesModal';
 import { RecurringTasksModal } from './components/RecurringTasksModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { useRecurringTasks } from './hooks/useRecurringTasks';
+import { useAgent } from './hooks/useAgent';
+import { AgentOverlay, AgentConfirmDialog } from './components/AgentOverlay';
 import { prioritizeTasks, renameTasks, planWeek, findDuplicates } from './lib/openai';
 import { upsertWeeklyGoals, getMonday, linkTodoToGoal, unlinkTodoFromGoal } from './lib/supabase';
 import type { FilterType, Todo, Priority, AIAnalysisResult, AIRenameResult, AIRenameSuggestion, AIWeeklyPlanResult, AIDuplicatesResult } from './types';
@@ -117,6 +119,21 @@ export default function App() {
     updateRecurringTask: updateRecurring,
     deleteRecurringTask: deleteRecurring,
   } = useRecurringTasks(user?.id, refetchTodos);
+
+  // Agent state
+  const agent = useAgent();
+  const [agentConfirmTask, setAgentConfirmTask] = useState<{ text: string; description?: string } | null>(null);
+
+  const handleAgentExecute = (taskText: string, taskDescription?: string) => {
+    setAgentConfirmTask({ text: taskText, description: taskDescription });
+  };
+
+  const handleAgentConfirm = (apiKey: string) => {
+    if (agentConfirmTask) {
+      agent.startAgent(apiKey, agentConfirmTask.text, agentConfirmTask.description);
+      setAgentConfirmTask(null);
+    }
+  };
 
   // Sync weekly goal completion whenever todos change
   useEffect(() => {
@@ -1167,6 +1184,8 @@ export default function App() {
               await refetchWeeklyGoals();
               syncWeeklyGoalCompletion(todos);
             }}
+            onExecuteWithAgent={handleAgentExecute}
+            agentRunning={agent.isRunning}
           />
         ) : (
           <>
@@ -1475,6 +1494,31 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Agent Overlay */}
+      {agent.status !== 'idle' && (
+        <AgentOverlay
+          status={agent.status}
+          message={agent.message}
+          thinking={agent.thinking}
+          screenshot={agent.screenshot}
+          actions={agent.actions}
+          iteration={agent.iteration}
+          maxIterations={agent.maxIterations}
+          isRunning={agent.isRunning}
+          onStop={agent.stopAgent}
+          onDismiss={agent.resetAgent}
+        />
+      )}
+
+      {/* Agent Confirmation Dialog */}
+      {agentConfirmTask && (
+        <AgentConfirmDialog
+          taskText={agentConfirmTask.text}
+          onConfirm={handleAgentConfirm}
+          onCancel={() => setAgentConfirmTask(null)}
+        />
       )}
     </div>
   );

@@ -19,6 +19,8 @@ interface TodoDetailProps {
   weeklyGoals?: WeeklyGoal[];
   onLinkGoal?: (goalId: string, todoId: string) => void;
   onUnlinkGoal?: (goalId: string, todoId: string) => void;
+  onExecuteWithAgent?: (taskText: string, taskDescription?: string) => void;
+  agentRunning?: boolean;
 }
 
 const PRIORITIES: Priority[] = ['P0', 'P1', 'P2', 'P3'];
@@ -160,7 +162,7 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bg: stri
   done: { label: 'Done', color: '#30D158', bg: 'rgba(48, 209, 88, 0.2)' },
 };
 
-export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spaces, onChangeSpace, focusDescription: _focusDescription, aiRoles, aiContext, aiSetupComplete, weeklyGoals, onLinkGoal, onUnlinkGoal }: TodoDetailProps) {
+export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spaces, onChangeSpace, focusDescription: _focusDescription, aiRoles, aiContext, aiSetupComplete, weeklyGoals, onLinkGoal, onUnlinkGoal, onExecuteWithAgent, agentRunning }: TodoDetailProps) {
   const [title, setTitle] = useState(todo.text);
   const [description, setDescription] = useState(todo.description || '');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -714,6 +716,22 @@ export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spa
           );
         })()}
 
+        {/* Execute with Agent button */}
+        {onExecuteWithAgent && todo.status !== 'done' && (
+          <button
+            type="button"
+            className="agent-execute-btn"
+            disabled={agentRunning}
+            onClick={() => {
+              const plainDesc = description.replace(/<[^>]*>/g, '').trim();
+              onExecuteWithAgent(todo.text, plainDesc || undefined);
+            }}
+          >
+            <AgentIcon />
+            <span>{agentRunning ? 'Agent running...' : 'Execute with Agent'}</span>
+          </button>
+        )}
+
         <RichTextEditor
           ref={descriptionRef}
           content={description}
@@ -772,6 +790,15 @@ function CalendarIcon() {
       <path d="M1.5 5H10.5" stroke="currentColor" strokeWidth="1.2" />
       <path d="M4 1.5V3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
       <path d="M8 1.5V3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function AgentIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M7 1L2 4V10L7 13L12 10V4L7 1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2" />
     </svg>
   );
 }
