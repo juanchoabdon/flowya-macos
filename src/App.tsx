@@ -34,7 +34,7 @@ export default function App() {
   const { user, loading: authLoading, signInWithEmail, signUpWithEmail, signOut } = useAuth();
   const { spaces, loading: spacesLoading, createSpace, updateSpace, deleteSpace, reorderSpaces } = useSpaces(user?.id);
   const { settings, loading: settingsLoading, updateSettings } = useSettings(user?.id);
-  const { count: streakCount, bestToday: streakBestToday, isActive: streakActive, showFlame, recordCompletion: recordStreakCompletion, getYesterdayBestStreak } = useStreak();
+  const { count: streakCount, bestToday: streakBestToday, isActive: streakActive, showFlame, recordCompletion: recordStreakCompletion, getYesterdayBestStreak } = useStreak(user?.id);
   const { roles: aiRoles, context: aiContext, isSetup: aiIsSetup, saveProfile: saveAIProfile } = useAIProfile(settings, updateSettings);
 
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>('__all__');

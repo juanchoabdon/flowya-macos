@@ -118,3 +118,25 @@ CREATE POLICY "Users can manage their own recurring tasks"
     FOR ALL
     USING (auth.uid() = user_id)
     WITH CHECK (auth.uid() = user_id);
+
+-- ============================================
+-- USER STREAKS TABLE (cross-platform sync)
+-- ============================================
+CREATE TABLE IF NOT EXISTS user_streaks (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    streak_count INT NOT NULL DEFAULT 0,
+    last_completed_at TIMESTAMPTZ,
+    best_today INT NOT NULL DEFAULT 0,
+    today_date TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE user_streaks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own streaks"
+    ON user_streaks
+    FOR ALL
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE user_streaks REPLICA IDENTITY FULL;

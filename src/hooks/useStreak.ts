@@ -1,103 +1,160 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 const STREAK_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
-const STORAGE_KEY = 'flowya_streak';
+const TABLE = 'user_streaks';
 
 interface StreakState {
   count: number;
-  lastCompletedAt: string | null; // ISO timestamp
+  lastCompletedAt: string | null;
   bestToday: number;
   todayDate: string;
 }
 
 function getToday(): string {
-  return new Date().toDateString();
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function loadStreak(): StreakState {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const state: StreakState = JSON.parse(stored);
-      // Reset bestToday if it's a new day
-      if (state.todayDate !== getToday()) {
-        return { count: 0, lastCompletedAt: null, bestToday: 0, todayDate: getToday() };
-      }
-      // Check if streak is still active (within 30 min window)
-      if (state.lastCompletedAt) {
-        const elapsed = Date.now() - new Date(state.lastCompletedAt).getTime();
-        if (elapsed > STREAK_WINDOW_MS) {
-          // Streak expired, keep bestToday
-          return { ...state, count: 0, lastCompletedAt: null };
-        }
-      }
-      return state;
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return { count: 0, lastCompletedAt: null, bestToday: 0, todayDate: getToday() };
+function isStreakExpired(lastCompletedAt: string | null): boolean {
+  if (!lastCompletedAt) return true;
+  return Date.now() - new Date(lastCompletedAt).getTime() > STREAK_WINDOW_MS;
 }
 
-function saveStreak(state: StreakState): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-export function useStreak() {
-  const [streak, setStreak] = useState<StreakState>(loadStreak);
+export function useStreak(userId?: string) {
+  const [streak, setStreak] = useState<StreakState>({
+    count: 0,
+    lastCompletedAt: null,
+    bestToday: 0,
+    todayDate: getToday(),
+  });
   const [showFlame, setShowFlame] = useState(false);
-  
-  // Check if streak expired every 10 seconds
+  const channelRef = useRef<RealtimeChannel | null>(null);
+
+  // Load from Supabase on mount / userId change
+  useEffect(() => {
+    if (!userId) return;
+
+    const load = async () => {
+      const { data, error } = await supabase
+        .from(TABLE)
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('[Streak] Failed to load:', error);
+        return;
+      }
+
+      if (data) {
+        applyRow(data);
+      }
+    };
+
+    load();
+  }, [userId]);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!userId) return;
+
+    channelRef.current?.unsubscribe();
+
+    const channel = supabase
+      .channel(`user_streaks_${userId.substring(0, 8)}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: TABLE, filter: `user_id=eq.${userId}` },
+        (payload) => {
+          if (payload.new && typeof payload.new === 'object') {
+            applyRow(payload.new as any);
+          }
+        }
+      )
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      channel.unsubscribe();
+      channelRef.current = null;
+    };
+  }, [userId]);
+
+  const applyRow = useCallback((row: any) => {
+    const today = getToday();
+    const lastAt = row.last_completed_at || null;
+    const expired = isStreakExpired(lastAt);
+
+    setStreak({
+      count: expired ? 0 : (row.streak_count ?? 0),
+      lastCompletedAt: lastAt,
+      bestToday: row.today_date === today ? (row.best_today ?? 0) : 0,
+      todayDate: today,
+    });
+  }, []);
+
+  // Expiry checker every 10 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      if (streak.lastCompletedAt) {
-        const elapsed = Date.now() - new Date(streak.lastCompletedAt).getTime();
-        if (elapsed > STREAK_WINDOW_MS && streak.count > 0) {
-          const newState = { ...streak, count: 0, lastCompletedAt: null };
-          setStreak(newState);
-          saveStreak(newState);
+      if (streak.lastCompletedAt && streak.count > 0) {
+        if (isStreakExpired(streak.lastCompletedAt)) {
+          setStreak(prev => ({ ...prev, count: 0, lastCompletedAt: null }));
         }
       }
     }, 10000);
     return () => clearInterval(interval);
-  }, [streak]);
-  
-  // Record a task completion
+  }, [streak.lastCompletedAt, streak.count]);
+
   const recordCompletion = useCallback(() => {
+    if (!userId) return;
+
     setStreak(prev => {
       const now = new Date();
       let newCount = 1;
-      
-      // Check if within streak window
+
       if (prev.lastCompletedAt) {
         const elapsed = now.getTime() - new Date(prev.lastCompletedAt).getTime();
         if (elapsed <= STREAK_WINDOW_MS) {
           newCount = prev.count + 1;
         }
       }
-      
+
       const today = getToday();
-      const bestToday = today === prev.todayDate 
+      const bestToday = today === prev.todayDate
         ? Math.max(prev.bestToday, newCount)
         : newCount;
-      
+
       const newState: StreakState = {
         count: newCount,
         lastCompletedAt: now.toISOString(),
         bestToday,
         todayDate: today,
       };
-      
-      saveStreak(newState);
+
+      // Save to Supabase
+      supabase
+        .from(TABLE)
+        .upsert({
+          user_id: userId,
+          streak_count: newCount,
+          last_completed_at: now.toISOString(),
+          best_today: bestToday,
+          today_date: today,
+        })
+        .then(({ error }) => {
+          if (error) console.error('[Streak] Failed to save:', error);
+        });
+
       return newState;
     });
-    
-    // Trigger flame animation
+
     setShowFlame(true);
     setTimeout(() => setShowFlame(false), 2000);
-  }, []);
-  
-  // Get yesterday's best streak for daily summary
+  }, [userId]);
+
   const getYesterdayBestStreak = useCallback((): number => {
     try {
       const stored = localStorage.getItem('flowya_streak_yesterday');
@@ -105,7 +162,8 @@ export function useStreak() {
         const data = JSON.parse(stored);
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        if (data.date === yesterday.toDateString()) {
+        const yStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+        if (data.date === yStr) {
           return data.best;
         }
       }
@@ -114,8 +172,8 @@ export function useStreak() {
     }
     return 0;
   }, []);
-  
-  // Save today's best streak for tomorrow's summary (run at end of day or when streak updates)
+
+  // Cache best today for yesterday's summary
   useEffect(() => {
     if (streak.bestToday > 0) {
       localStorage.setItem('flowya_streak_yesterday', JSON.stringify({
@@ -124,7 +182,7 @@ export function useStreak() {
       }));
     }
   }, [streak.bestToday]);
-  
+
   return {
     count: streak.count,
     bestToday: streak.bestToday,
