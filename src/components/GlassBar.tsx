@@ -394,15 +394,6 @@ export function GlassBar({
           <span className="ai-tooltip">AI Boost</span>
         </button>
 
-        {/* Recurring / Daily Tasks button */}
-        <button
-          className="icon-btn recurring-btn"
-          onClick={() => onOpenRecurringTasks?.()}
-          title="Daily Tasks"
-        >
-          <RecurringIcon />
-        </button>
-
         <div className="dropdown" ref={accountMenuRef}>
           <button 
             className={`icon-btn account-btn ${updateAvailable ? 'has-update' : ''} ${hasUnseenUpdates ? 'has-badge' : ''}`}
@@ -437,6 +428,17 @@ export function GlassBar({
               >
                 <ResizeIcon size={14} />
                 <span>Reset Size</span>
+              </div>
+
+              <div
+                className="dropdown-item"
+                onClick={() => {
+                  onOpenRecurringTasks?.();
+                  setAccountMenuOpen(false);
+                }}
+              >
+                <RecurringIcon />
+                <span>Daily Tasks</span>
               </div>
 
               {aiProfileSetup && onEditAIProfile && (
