@@ -146,6 +146,41 @@ function getTotalSteps(hasLastWeek: boolean, isFirstTime: boolean): number {
   return (isFirstTime ? 1 : 0) + (hasLastWeek ? 1 : 0) + 2;
 }
 
+const DRAFT_STORAGE_KEY = 'flowya_weekly_plan_draft';
+
+interface WeeklyPlanDraft {
+  goalsMap: Record<string, string[]>;
+  step: Step;
+  spaceIndex: number;
+  savedAt: number;
+}
+
+function saveDraft(draft: WeeklyPlanDraft): void {
+  try {
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  } catch { /* ignore quota errors */ }
+}
+
+function loadDraft(): WeeklyPlanDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as WeeklyPlanDraft;
+    // Expire drafts older than 24 hours
+    if (Date.now() - draft.savedAt > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      return null;
+    }
+    return draft;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraft(): void {
+  localStorage.removeItem(DRAFT_STORAGE_KEY);
+}
+
 export function WeeklyPlanningModal({
   spaces,
   lastWeekGoals,
@@ -164,10 +199,19 @@ export function WeeklyPlanningModal({
   const lastWeekHadProgress = lastWeekGoals.length > 0 && lastWeekGoals.some(g => g.completed);
   const hasLastWeek = lastWeekHadProgress;
   const hasCurrentWeek = currentWeekGoals.length > 0;
-  const [step, setStep] = useState<Step>(
-    initialSpaceId ? 'goals' : isFirstTime ? 'intro' : hasLastWeek && !hasCurrentWeek ? 'review' : 'goals'
-  );
+
+  const draft = loadDraft();
+  const hasDraftGoals = draft?.goalsMap && Object.values(draft.goalsMap).some(arr => arr.some(g => g.trim().length > 0));
+
+  const [step, setStep] = useState<Step>(() => {
+    if (hasDraftGoals && draft.step !== 'results') return draft.step;
+    if (initialSpaceId) return 'goals';
+    if (isFirstTime) return 'intro';
+    if (hasLastWeek && !hasCurrentWeek) return 'review';
+    return 'goals';
+  });
   const [currentSpaceIndex, setCurrentSpaceIndex] = useState(() => {
+    if (hasDraftGoals && draft.spaceIndex !== undefined) return draft.spaceIndex;
     if (initialSpaceId) {
       const idx = spaces.findIndex(s => s.id === initialSpaceId);
       return idx >= 0 ? idx : 0;
@@ -175,9 +219,9 @@ export function WeeklyPlanningModal({
     return 0;
   });
   const [goalsMap, setGoalsMap] = useState<Record<string, string[]>>(() => {
+    if (hasDraftGoals) return draft.goalsMap;
     const map: Record<string, string[]> = {};
     for (const space of spaces) {
-      // Pre-fill from current week goals if editing
       const existing = currentWeekGoals
         .filter(g => g.space_id === space.id)
         .sort((a, b) => a.position - b.position)
@@ -196,6 +240,12 @@ export function WeeklyPlanningModal({
   const [animKey, setAnimKey] = useState(0);
   const [accepting, setAccepting] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Persist draft to localStorage on changes
+  useEffect(() => {
+    if (step === 'results') return; // don't overwrite once submitted
+    saveDraft({ goalsMap, step, spaceIndex: currentSpaceIndex, savedAt: Date.now() });
+  }, [goalsMap, step, currentSpaceIndex]);
 
   const currentSpace = spaces[currentSpaceIndex];
   const todoMap = Object.fromEntries(todos.map(t => [t.id, t]));
@@ -282,6 +332,7 @@ export function WeeklyPlanningModal({
       .filter(o => o.goals.length > 0);
 
     if (objectives.length === 0) return;
+    clearDraft();
     setStep('results');
     onPlan(objectives);
   };
@@ -578,6 +629,7 @@ export function WeeklyPlanningModal({
                     disabled={accepting}
                     onClick={async () => {
                       setAccepting(true);
+                      clearDraft();
                       await onAccept();
                     }}
                   >
