@@ -716,22 +716,6 @@ export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spa
           );
         })()}
 
-        {/* Execute with Agent button */}
-        {onExecuteWithAgent && todo.status !== 'done' && (
-          <button
-            type="button"
-            className="agent-execute-btn"
-            disabled={agentRunning}
-            onClick={() => {
-              const plainDesc = description.replace(/<[^>]*>/g, '').trim();
-              onExecuteWithAgent(todo.text, plainDesc || undefined);
-            }}
-          >
-            <AgentIcon />
-            <span>{agentRunning ? 'Agent running...' : 'Execute with Agent'}</span>
-          </button>
-        )}
-
         <RichTextEditor
           ref={descriptionRef}
           content={description}
