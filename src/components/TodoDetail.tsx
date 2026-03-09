@@ -778,11 +778,3 @@ function CalendarIcon() {
   );
 }
 
-function _AgentIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M7 1L2 4V10L7 13L12 10V4L7 1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-      <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  );
-}
