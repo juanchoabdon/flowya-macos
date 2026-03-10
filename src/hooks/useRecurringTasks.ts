@@ -49,8 +49,12 @@ export function useRecurringTasks(
 
   // Auto-create tasks for today on load
   useEffect(() => {
-    if (!userId || loading || hasAutoCreated.current || recurringTasks.length === 0) return;
+    if (!userId || loading || hasAutoCreated.current) return;
+    // Mark as done even if there are no recurring tasks, so we don't
+    // re-run on every state change
     hasAutoCreated.current = true;
+
+    if (recurringTasks.length === 0) return;
 
     const today = getTodayDateString();
     const dayOfWeek = new Date().getDay(); // 0=Sun ... 6=Sat
@@ -82,12 +86,26 @@ export function useRecurringTasks(
     try {
       const created = await api.createRecurringTask({ ...task, user_id: userId });
       setRecurringTasks(prev => [...prev, created]);
+
+      // If today matches this task's schedule, create the todo immediately
+      const today = getTodayDateString();
+      const dayOfWeek = new Date().getDay();
+      if (created.enabled && created.days.includes(dayOfWeek) && created.last_created_date !== today) {
+        try {
+          await api.createTodoAtTop(created.space_id, created.text);
+          await api.markRecurringTaskCreated(created.id, today);
+          await refetchTodos();
+        } catch (err) {
+          console.error(`Failed to auto-create task for new recurring "${created.text}":`, err);
+        }
+      }
+
       return created;
     } catch (err) {
       console.error('Failed to create recurring task:', err);
       return null;
     }
-  }, [userId]);
+  }, [userId, refetchTodos]);
 
   const updateRecurringTask = useCallback(async (
     id: string,
