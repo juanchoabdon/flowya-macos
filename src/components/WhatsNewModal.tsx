@@ -63,7 +63,7 @@ const TRICKS = [
   {
     title: 'Pro Tips',
     items: [
-      { key: 'AI Boost', desc: 'Click the sparkle icon to prioritize or sharpen task names with AI' },
+      { key: 'AI Boost', desc: 'Click the wave icon to prioritize or sharpen task names with AI' },
       { key: 'P0 Priority', desc: 'Tasks with 1hr/3hr/Today ETA auto-become P0' },
       { key: 'Links in descriptions', desc: 'Paste URLs, they become clickable links' },
       { key: 'Double-click link', desc: 'Opens link in browser' },

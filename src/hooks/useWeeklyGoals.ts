@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { WeeklyGoal, Todo } from '../types';
-import { getWeeklyGoals, getLastWeekGoals, getMonday, updateWeeklyGoalCompletion } from '../lib/supabase';
+import { getWeeklyGoals, getLastWeekGoals, getMonday, updateWeeklyGoalCompletion, supabase } from '../lib/supabase';
 
 interface UseWeeklyGoalsReturn {
   goals: WeeklyGoal[];
@@ -11,6 +11,28 @@ interface UseWeeklyGoalsReturn {
   refetch: () => Promise<void>;
   syncCompletion: (todos: Todo[]) => void;
   toggleGoalCompletion: (goalId: string) => void;
+  toggleLastWeekGoalCompletion: (goalId: string) => void;
+}
+
+async function fetchMissingTodos(missingIds: string[]): Promise<Map<string, Todo>> {
+  const map = new Map<string, Todo>();
+  if (missingIds.length === 0) return map;
+  const { data } = await supabase
+    .from('todos')
+    .select('*')
+    .in('id', missingIds);
+  if (data) {
+    for (const t of data as Todo[]) {
+      map.set(t.id, t);
+    }
+  }
+  return map;
+}
+
+function getLinkedIds(goal: WeeklyGoal): string[] {
+  return goal.linked_todo_ids?.length
+    ? goal.linked_todo_ids
+    : (goal.linked_todo_id ? [goal.linked_todo_id] : []);
 }
 
 export function useWeeklyGoals(userId: string | undefined): UseWeeklyGoalsReturn {
@@ -40,21 +62,34 @@ export function useWeeklyGoals(userId: string | undefined): UseWeeklyGoalsReturn
     fetchGoals();
   }, [fetchGoals]);
 
-  const syncCompletion = useCallback((todos: Todo[]) => {
+  const syncCompletion = useCallback(async (todos: Todo[]) => {
     const todoMap = new Map(todos.map(t => [t.id, t]));
+
+    const allGoals = [...goals, ...lastWeekGoals];
+    const missingIds: string[] = [];
+    for (const goal of allGoals) {
+      for (const id of getLinkedIds(goal)) {
+        if (!todoMap.has(id) && !missingIds.includes(id)) {
+          missingIds.push(id);
+        }
+      }
+    }
+
+    const archivedMap = await fetchMissingTodos(missingIds);
+    for (const [id, todo] of archivedMap) {
+      todoMap.set(id, todo);
+    }
 
     setGoals(prev => {
       const updated: WeeklyGoal[] = [];
       let changed = false;
 
       for (const goal of prev) {
-        const ids = goal.linked_todo_ids?.length ? goal.linked_todo_ids : (goal.linked_todo_id ? [goal.linked_todo_id] : []);
-        if (ids.length === 0) {
-          updated.push(goal);
-          continue;
-        }
+        const ids = getLinkedIds(goal);
+        if (ids.length === 0) { updated.push(goal); continue; }
         const linkedTodos = ids.map(id => todoMap.get(id)).filter(Boolean);
-        const isDone = linkedTodos.length > 0 && linkedTodos.every(t => t!.status === 'done');
+        if (linkedTodos.length === 0) { updated.push(goal); continue; }
+        const isDone = linkedTodos.every(t => t!.status === 'done');
 
         if (goal.completed !== isDone) {
           changed = true;
@@ -64,13 +99,43 @@ export function useWeeklyGoals(userId: string | undefined): UseWeeklyGoalsReturn
           updated.push(goal);
         }
       }
-
       return changed ? updated : prev;
     });
-  }, []);
+
+    setLastWeekGoals(prev => {
+      const updated: WeeklyGoal[] = [];
+      let changed = false;
+
+      for (const goal of prev) {
+        const ids = getLinkedIds(goal);
+        if (ids.length === 0) { updated.push(goal); continue; }
+        const linkedTodos = ids.map(id => todoMap.get(id)).filter(Boolean);
+        if (linkedTodos.length === 0) { updated.push(goal); continue; }
+        const isDone = linkedTodos.every(t => t!.status === 'done');
+
+        if (goal.completed !== isDone) {
+          changed = true;
+          updated.push({ ...goal, completed: isDone });
+          updateWeeklyGoalCompletion(goal.id, isDone);
+        } else {
+          updated.push(goal);
+        }
+      }
+      return changed ? updated : prev;
+    });
+  }, [goals, lastWeekGoals]);
 
   const toggleGoalCompletion = useCallback((goalId: string) => {
     setGoals(prev => prev.map(g => {
+      if (g.id !== goalId) return g;
+      const newCompleted = !g.completed;
+      updateWeeklyGoalCompletion(goalId, newCompleted);
+      return { ...g, completed: newCompleted };
+    }));
+  }, []);
+
+  const toggleLastWeekGoalCompletion = useCallback((goalId: string) => {
+    setLastWeekGoals(prev => prev.map(g => {
       if (g.id !== goalId) return g;
       const newCompleted = !g.completed;
       updateWeeklyGoalCompletion(goalId, newCompleted);
@@ -91,5 +156,6 @@ export function useWeeklyGoals(userId: string | undefined): UseWeeklyGoalsReturn
     refetch: fetchGoals,
     syncCompletion,
     toggleGoalCompletion,
+    toggleLastWeekGoalCompletion,
   };
 }

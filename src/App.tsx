@@ -111,6 +111,7 @@ export default function App() {
     refetch: refetchWeeklyGoals,
     syncCompletion: syncWeeklyGoalCompletion,
     toggleGoalCompletion,
+    toggleLastWeekGoalCompletion,
   } = useWeeklyGoals(user?.id);
 
   const {
@@ -1314,6 +1315,7 @@ export default function App() {
         onClose={() => setShowRecurringTasks(false)}
         recurringTasks={recurringTasks}
         spaces={spaces}
+        currentSpaceId={selectedSpaceId !== '__all__' ? selectedSpaceId : undefined}
         onCreate={createRecurring}
         onUpdate={updateRecurring}
         onDelete={deleteRecurring}
@@ -1420,6 +1422,7 @@ export default function App() {
           onAccept={handleAcceptWeeklyPlan}
           onDismiss={snoozeWeeklyPlanning}
           onSnooze={snoozeWeeklyPlanning}
+          onToggleLastWeekGoal={toggleLastWeekGoalCompletion}
         />
       )}
 

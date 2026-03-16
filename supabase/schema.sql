@@ -140,3 +140,10 @@ CREATE POLICY "Users can manage their own streaks"
     WITH CHECK (auth.uid() = user_id);
 
 ALTER TABLE user_streaks REPLICA IDENTITY FULL;
+
+-- ============================================
+-- DAILY RECURRING TASKS CRON
+-- ============================================
+-- See migrations/create_daily_recurring_tasks_cron.sql
+-- Creates a pg_cron job that auto-creates todos from
+-- recurring_tasks every day at 5:00 AM UTC.

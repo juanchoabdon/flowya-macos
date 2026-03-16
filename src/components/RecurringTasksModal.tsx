@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { RecurringTask, Space } from '../types';
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -11,6 +11,7 @@ interface RecurringTasksModalProps {
   onClose: () => void;
   recurringTasks: RecurringTask[];
   spaces: Space[];
+  currentSpaceId?: string | null;
   onCreate: (task: { space_id: string; text: string; days: number[] }) => Promise<RecurringTask | null>;
   onUpdate: (id: string, updates: Partial<Pick<RecurringTask, 'text' | 'space_id' | 'days' | 'enabled'>>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -29,6 +30,7 @@ export function RecurringTasksModal({
   onClose,
   recurringTasks,
   spaces,
+  currentSpaceId,
   onCreate,
   onUpdate,
   onDelete,
@@ -38,6 +40,14 @@ export function RecurringTasksModal({
   const [newDays, setNewDays] = useState<number[]>(WEEKDAYS);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const resolved = (currentSpaceId && spaces.some(s => s.id === currentSpaceId))
+      ? currentSpaceId
+      : spaces[0]?.id || '';
+    setNewSpaceId(resolved);
+  }, [isOpen, currentSpaceId, spaces]);
 
   if (!isOpen) return null;
 

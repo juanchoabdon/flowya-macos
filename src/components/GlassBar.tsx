@@ -700,23 +700,23 @@ function RecurringIcon() {
 
 function AISparkleIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="ai-sparkle-svg">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="ai-wave-svg">
       <defs>
         <linearGradient id="aiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#FFD54F">
-            <animate attributeName="stop-color" values="#FFD54F;#FF6B9D;#4FC3F7;#81C784;#FFD54F" dur="3s" repeatCount="indefinite"/>
+          <stop offset="0%" stopColor="#8C66FF">
+            <animate attributeName="stop-color" values="#8C66FF;#4DB8FF;#66E6E6;#8C66FF" dur="3s" repeatCount="indefinite"/>
           </stop>
-          <stop offset="50%" stopColor="#FF6B9D">
-            <animate attributeName="stop-color" values="#FF6B9D;#4FC3F7;#81C784;#FFD54F;#FF6B9D" dur="3s" repeatCount="indefinite"/>
+          <stop offset="50%" stopColor="#4DB8FF">
+            <animate attributeName="stop-color" values="#4DB8FF;#66E6E6;#8C66FF;#4DB8FF" dur="3s" repeatCount="indefinite"/>
           </stop>
-          <stop offset="100%" stopColor="#4FC3F7">
-            <animate attributeName="stop-color" values="#4FC3F7;#81C784;#FFD54F;#FF6B9D;#4FC3F7" dur="3s" repeatCount="indefinite"/>
+          <stop offset="100%" stopColor="#66E6E6">
+            <animate attributeName="stop-color" values="#66E6E6;#8C66FF;#4DB8FF;#66E6E6" dur="3s" repeatCount="indefinite"/>
           </stop>
         </linearGradient>
       </defs>
-      <path d="M8 1L9.5 5.5L14 7L9.5 8.5L8 13L6.5 8.5L2 7L6.5 5.5L8 1Z" fill="url(#aiGrad)" stroke="url(#aiGrad)" strokeWidth="0.5" strokeLinejoin="round"/>
-      <circle cx="13" cy="3" r="1.2" fill="url(#aiGrad)" className="ai-sparkle-dot1"/>
-      <circle cx="3" cy="12" r="1" fill="url(#aiGrad)" className="ai-sparkle-dot2"/>
+      <path d="M2 8c2-2 4-2 6 0s4 2 6 0 4-2 6 0" stroke="url(#aiGrad)" strokeWidth="2" strokeLinecap="round" fill="none"/>
+      <path d="M2 13c2-2 4-2 6 0s4 2 6 0 4-2 6 0" stroke="url(#aiGrad)" strokeWidth="2" strokeLinecap="round" fill="none"/>
+      <path d="M2 18c2-2 4-2 6 0s4 2 6 0 4-2 6 0" stroke="url(#aiGrad)" strokeWidth="2" strokeLinecap="round" fill="none"/>
     </svg>
   );
 }

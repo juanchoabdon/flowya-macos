@@ -16,6 +16,7 @@ interface WeeklyPlanningModalProps {
   onAccept: () => Promise<void> | void;
   onDismiss: () => void;
   onSnooze?: () => void;
+  onToggleLastWeekGoal?: (goalId: string) => void;
 }
 
 type Step = 'intro' | 'review' | 'goals' | 'results';
@@ -195,9 +196,9 @@ export function WeeklyPlanningModal({
   onAccept,
   onDismiss,
   onSnooze,
+  onToggleLastWeekGoal,
 }: WeeklyPlanningModalProps) {
-  const lastWeekHadProgress = lastWeekGoals.length > 0 && lastWeekGoals.some(g => g.completed);
-  const hasLastWeek = lastWeekHadProgress;
+  const hasLastWeek = lastWeekGoals.length > 0;
   const hasCurrentWeek = currentWeekGoals.length > 0;
 
   const draft = loadDraft();
@@ -397,13 +398,13 @@ export function WeeklyPlanningModal({
         {/* STEP: Last Week Review */}
         {step === 'review' && (
           <div className="ai-onboarding-step">
-            <h2 className="ai-onboarding-title" style={{ fontSize: '16px', marginBottom: '2px' }}>Last week</h2>
-            <p className="ai-onboarding-subtitle" style={{ marginBottom: '8px' }}>
-              {lastWeekCompleted}/{lastWeekTotal} goals completed
-            </p>
-
-            <div className="weekly-review-progress" style={{ marginBottom: '8px' }}>
-              <div className="weekly-review-bar">
+            <div className="weekly-review-header-compact">
+              <div className="weekly-review-header-top">
+                <SparkleIcon size={16} />
+                <h2 className="weekly-review-title-compact">Last week</h2>
+                <span className="weekly-review-count">{lastWeekCompleted}/{lastWeekTotal}</span>
+              </div>
+              <div className="weekly-review-bar" style={{ marginTop: '6px' }}>
                 <div
                   className="weekly-review-bar-fill"
                   style={{ width: `${lastWeekTotal > 0 ? (lastWeekCompleted / lastWeekTotal) * 100 : 0}%` }}
@@ -420,11 +421,16 @@ export function WeeklyPlanningModal({
                       <span>{space.name}</span>
                     </div>
                     {goals.map(g => (
-                      <div key={g.id} className={`weekly-review-goal ${g.completed ? 'completed' : ''}`}>
+                      <div
+                        key={g.id}
+                        className={`weekly-review-goal ${g.completed ? 'completed' : ''}`}
+                        onClick={() => onToggleLastWeekGoal?.(g.id)}
+                        style={{ cursor: 'pointer' }}
+                      >
                         <div className={`weekly-review-check ${g.completed ? 'done' : ''}`}>
                           {g.completed ? '✓' : '○'}
                         </div>
-                        <span>{g.goal_text}</span>
+                        <span style={{ textDecoration: g.completed ? 'line-through' : 'none', opacity: g.completed ? 0.6 : 1 }}>{g.goal_text}</span>
                       </div>
                     ))}
                   </div>
@@ -453,6 +459,7 @@ export function WeeklyPlanningModal({
               className={`ai-space-slide ${slideDir === 'left' ? 'slide-in-left' : slideDir === 'right' ? 'slide-in-right' : ''}`}
             >
               <div className="ai-onboarding-space-header">
+                <SparkleIcon size={16} />
                 <div className="ai-onboarding-space-dot" style={{ background: currentSpace.color }} />
                 <span className="ai-onboarding-space-name">{currentSpace.name}</span>
                 <span className="ai-onboarding-space-counter">

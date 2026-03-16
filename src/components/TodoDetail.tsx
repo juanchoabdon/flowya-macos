@@ -628,7 +628,7 @@ export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spa
               }
             }}
           >
-            <span className="ai-suggestion-sparkle">✨</span>
+            <span className="ai-suggestion-sparkle">🌊</span>
             {aiSuggestionLoading ? (
               <span className="ai-suggestion-text">Thinking of a better name...</span>
             ) : (
