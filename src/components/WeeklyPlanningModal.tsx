@@ -201,7 +201,8 @@ export function WeeklyPlanningModal({
   const hasLastWeek = lastWeekGoals.length > 0;
   const hasCurrentWeek = currentWeekGoals.length > 0;
 
-  const draft = loadDraft();
+  const draftRef = useRef(loadDraft());
+  const draft = draftRef.current;
   const hasDraftGoals = draft?.goalsMap && Object.values(draft.goalsMap).some(arr => arr.some(g => g.trim().length > 0));
 
   const [step, setStep] = useState<Step>(() => {
@@ -229,10 +230,10 @@ export function WeeklyPlanningModal({
         .map(g => g.goal_text);
       if (existing.length > 0) {
         const filled = [...existing];
-        while (filled.length < 5) filled.push('');
-        map[space.id] = filled.slice(0, 5);
+        while (filled.length < 3) filled.push('');
+        map[space.id] = filled;
       } else {
-        map[space.id] = ['', '', '', '', ''];
+        map[space.id] = ['', '', ''];
       }
     }
     return map;
@@ -265,15 +266,15 @@ export function WeeklyPlanningModal({
   }, [step, currentSpaceIndex]);
 
   useEffect(() => {
-    if (hasCurrentWeek || !hasLastWeek) return;
+    if (hasDraftGoals || hasCurrentWeek || !hasLastWeek) return;
     const prefill: Record<string, string[]> = {};
     for (const space of spaces) {
       const spaceGoals = lastWeekGoals
         .filter(g => g.space_id === space.id && !g.completed)
         .map(g => g.goal_text);
       const filled = [...spaceGoals];
-      while (filled.length < 5) filled.push('');
-      prefill[space.id] = filled.slice(0, 5);
+      while (filled.length < 3) filled.push('');
+      prefill[space.id] = filled;
     }
     setGoalsMap(prev => {
       const merged = { ...prev };
@@ -288,8 +289,16 @@ export function WeeklyPlanningModal({
 
   const handleGoalChange = (spaceId: string, index: number, value: string) => {
     setGoalsMap(prev => {
-      const arr = [...(prev[spaceId] || ['', '', '', '', ''])];
+      const arr = [...(prev[spaceId] || ['', '', ''])];
       arr[index] = value;
+      return { ...prev, [spaceId]: arr };
+    });
+  };
+
+  const handleAddGoalSlot = (spaceId: string) => {
+    setGoalsMap(prev => {
+      const arr = [...(prev[spaceId] || ['', '', ''])];
+      arr.push('');
       return { ...prev, [spaceId]: arr };
     });
   };
@@ -486,15 +495,27 @@ export function WeeklyPlanningModal({
                         value={goal}
                         onChange={e => handleGoalChange(currentSpace.id, i, e.target.value)}
                         onKeyDown={e => {
-                          if (e.key === 'Enter' && i < 4) {
-                            inputRefs.current[i + 1]?.focus();
-                          } else if (e.key === 'Enter' && i === 4) {
-                            handleNextSpace();
+                          if (e.key === 'Enter') {
+                            if (i < currentGoals.length - 1) {
+                              inputRefs.current[i + 1]?.focus();
+                            } else {
+                              handleAddGoalSlot(currentSpace.id);
+                              setTimeout(() => inputRefs.current[i + 1]?.focus(), 50);
+                            }
                           }
                         }}
                       />
                     </div>
                   ))}
+                  <button
+                    className="weekly-add-goal-btn"
+                    onClick={() => {
+                      handleAddGoalSlot(currentSpace.id);
+                      setTimeout(() => inputRefs.current[currentGoals.length]?.focus(), 50);
+                    }}
+                  >
+                    + Add goal
+                  </button>
                 </div>
               </div>
             </div>

@@ -4898,6 +4898,23 @@ body {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+.weekly-add-goal-btn {
+  background: none;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  text-align: left;
+}
+
+.weekly-add-goal-btn:hover {
+  color: rgba(255, 255, 255, 0.6);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 /* Results - Mapping Items */
 .weekly-mappings {
   display: flex;
