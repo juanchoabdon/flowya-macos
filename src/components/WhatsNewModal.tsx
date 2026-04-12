@@ -20,9 +20,8 @@ const FALLBACK_CHANGELOG = [
       'Sharpen Task Names — AI rewrites vague tasks into clear actions',
       'Inline AI suggestions when opening any task',
       'AI now considers your roles and context for smarter suggestions',
-      'P0 and overdue tasks auto-sort to the top',
+      'P0 tasks auto-sort to the top',
       'Confirmation modal when dragging tasks above P0',
-      'Smart ETA rescheduling for overdue tasks during AI prioritization',
     ]
   },
   {

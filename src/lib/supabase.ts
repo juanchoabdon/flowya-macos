@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Space, Todo, Settings, WeeklyGoal, RecurringTask } from '../types';
+import type { Space, Todo, Settings, WeeklyGoal, RecurringTask, Note } from '../types';
 import { SPACE_COLORS } from '../types';
 
 // Get Supabase credentials from environment variables
@@ -621,6 +621,91 @@ export async function createTodoAtTop(spaceId: string, text: string): Promise<To
     throw error;
   }
   return data;
+}
+
+// ============ Notes API ============
+
+export async function getNotes(spaceId: string, _userId?: string): Promise<Note[]> {
+  const { data, error } = await supabase
+    .from('notes')
+    .select('*')
+    .eq('space_id', spaceId)
+    .order('position', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching notes:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function getAllNotes(_userId?: string): Promise<Note[]> {
+  const { data, error } = await supabase
+    .from('notes')
+    .select('*')
+    .order('updated_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching all notes:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function createNote(spaceId: string, title: string): Promise<Note> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: existing } = await supabase
+    .from('notes')
+    .select('position')
+    .eq('space_id', spaceId)
+    .order('position', { ascending: false })
+    .limit(1);
+
+  const maxPosition = existing?.[0]?.position ?? -1;
+
+  const { data, error } = await supabase
+    .from('notes')
+    .insert({ space_id: spaceId, user_id: user.id, title, position: maxPosition + 1 })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating note:', error);
+    throw error;
+  }
+  return data;
+}
+
+export async function updateNote(
+  id: string,
+  updates: Partial<Pick<Note, 'title' | 'content' | 'position'>>
+): Promise<Note> {
+  const { data, error } = await supabase
+    .from('notes')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating note:', error);
+    throw error;
+  }
+  return data;
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('notes')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting note:', error);
+    throw error;
+  }
 }
 
 // ============================================

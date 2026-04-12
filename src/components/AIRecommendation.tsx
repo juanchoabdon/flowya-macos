@@ -111,8 +111,6 @@ export function AIRecommendation({
                   const space = spaceMap[todo.space_id];
                   const priorityChanged = todo.priority !== rec.newPriority;
                   const etaChanged = rec.newDueDate && rec.newDueDate !== todo.due_date;
-                  const isOverdue = todo.due_date && new Date(todo.due_date) < new Date();
-
                   return (
                     <div key={rec.todoId} className="ai-rec-item">
                       <div className="ai-rec-rank">{rec.rank}</div>
@@ -136,9 +134,8 @@ export function AIRecommendation({
                             )}
                           </span>
                           {etaChanged && (
-                            <span className={`ai-rec-eta ${isOverdue ? 'overdue' : ''}`}>
+                            <span className="ai-rec-eta">
                               📅 {formatShortDate(rec.newDueDate!)}
-                              {isOverdue && <span className="ai-rec-eta-badge">rescheduled</span>}
                             </span>
                           )}
                         </div>

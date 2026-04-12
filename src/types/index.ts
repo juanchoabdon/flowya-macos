@@ -168,6 +168,21 @@ export interface AgentEventPayload {
   maxIterations?: number;
 }
 
+// Notes
+export interface Note {
+  id: string;
+  user_id: string;
+  space_id: string;
+  title: string;
+  content: string | null;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// View modes
+export type ViewMode = 'tasks' | 'notes';
+
 // Filter types
 export type FilterType = 'all' | 'backlog' | 'in_progress' | 'done';
 

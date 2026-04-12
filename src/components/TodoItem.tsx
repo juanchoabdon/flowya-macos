@@ -91,22 +91,6 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
 
   const currentStatus = STATUS_CONFIG[todo.status];
 
-  // Get urgency class based on due date
-  const getUrgencyClass = () => {
-    if (!todo.due_date || todo.status === 'done') return '';
-    
-    const now = new Date();
-    const due = parseDueDate(todo.due_date);
-    const diffMs = due.getTime() - now.getTime();
-    const diffHours = diffMs / (1000 * 60 * 60);
-    
-    if (diffMs < 0) return 'overdue';
-    if (diffHours <= 1) return 'due-soon';
-    return '';
-  };
-
-  const urgencyClass = getUrgencyClass();
-
   const formatETA = (): string | null => {
     if (!todo.due_date || todo.status === 'done') return null;
     const now = new Date();
@@ -116,13 +100,7 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
     const diffHours = Math.round(diffMs / 3600000);
     const diffDays = Math.round(diffMs / 86400000);
 
-    if (diffMs < 0) {
-      const absMins = Math.abs(diffMins);
-      if (absMins < 60) return `${absMins}m overdue`;
-      const absHours = Math.abs(diffHours);
-      if (absHours < 24) return `${absHours}h overdue`;
-      return `${Math.abs(diffDays)}d overdue`;
-    }
+    if (diffMs < 0) return null;
     if (diffMins < 60) return `${diffMins}m`;
     if (diffHours < 24) return `${diffHours}h`;
     if (diffDays === 1) return 'Tomorrow';
@@ -144,7 +122,7 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
 
   return (
     <div 
-      className={`todo-item ${todo.status === 'done' ? 'completed' : ''} ${celebrating ? 'celebrating' : ''} ${urgencyClass}`}
+      className={`todo-item ${todo.status === 'done' ? 'completed' : ''} ${celebrating ? 'celebrating' : ''}`}
       draggable
       onDragStart={handleDragStart}
       onContextMenu={handleContextMenu}
@@ -171,16 +149,8 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
           onClick={() => setShowStatusMenu(!showStatusMenu)}
         >
           {todo.status === 'done' && <CheckIcon />}
-          {todo.status === 'in_progress' && (
-            urgencyClass === 'overdue' ? <ClockAlertIcon color="#FF453A" /> :
-            urgencyClass === 'due-soon' ? <ClockAlertIcon color="#FFCC00" /> :
-            <ProgressIcon />
-          )}
-          {todo.status === 'backlog' && (
-            urgencyClass === 'overdue' ? <ClockAlertIcon color="#FF453A" /> :
-            urgencyClass === 'due-soon' ? <ClockAlertIcon color="#FFCC00" /> :
-            <CircleIcon />
-          )}
+          {todo.status === 'in_progress' && <ProgressIcon />}
+          {todo.status === 'backlog' && <CircleIcon />}
         </button>
         
         {showStatusMenu && (
@@ -231,7 +201,7 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
                 <NoteIcon />
               )}
             {etaLabel && (
-              <span className={`todo-eta-label ${urgencyClass}`}>
+              <span className="todo-eta-label">
                 <ClockSmallIcon />
                 {etaLabel}
               </span>
@@ -307,14 +277,6 @@ function ProgressIcon() {
   );
 }
 
-function ClockAlertIcon({ color }: { color: string }) {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-      <circle cx="6" cy="6" r="5" stroke={color} strokeWidth="1.5" fill="none" />
-      <path d="M6 3V6L8 7" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 function CircleIcon() {
   return (

@@ -3,7 +3,7 @@
 -- ============================================
 -- Creates a PostgreSQL function + pg_cron job that
 -- automatically creates todos from recurring_tasks
--- every day at 12:00 PM UTC (6:00 AM Mexico CST).
+-- every day at 11:00 AM UTC (5:00 AM Mexico CST).
 --
 -- Run this in your Supabase SQL Editor.
 -- ============================================
@@ -56,11 +56,11 @@ END;
 $$;
 
 -- ============================================
--- Schedule: every day at 12:00 PM UTC (6:00 AM Mexico CST)
+-- Schedule: every day at 11:00 AM UTC (5:00 AM Mexico CST)
 -- ============================================
 SELECT cron.schedule(
   'create-daily-recurring-tasks',
-  '0 12 * * *',
+  '0 11 * * *',
   $$SELECT create_daily_recurring_tasks()$$
 );
 

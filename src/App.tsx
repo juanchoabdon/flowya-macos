@@ -30,7 +30,9 @@ import { useAgent } from './hooks/useAgent';
 import { AgentOverlay, AgentConfirmDialog } from './components/AgentOverlay';
 import { prioritizeTasks, renameTasks, planWeek, findDuplicates } from './lib/openai';
 import { upsertWeeklyGoals, getMonday, linkTodoToGoal, unlinkTodoFromGoal } from './lib/supabase';
-import type { FilterType, Todo, Priority, AIAnalysisResult, AIRenameResult, AIRenameSuggestion, AIWeeklyPlanResult, AIDuplicatesResult } from './types';
+import { NotesView } from './components/NotesView';
+import { useNotes } from './hooks/useNotes';
+import type { FilterType, ViewMode, Todo, Priority, AIAnalysisResult, AIRenameResult, AIRenameSuggestion, AIWeeklyPlanResult, AIDuplicatesResult } from './types';
 import * as analytics from './lib/analytics';
 
 export default function App() {
@@ -41,6 +43,10 @@ export default function App() {
   const { roles: aiRoles, context: aiContext, isSetup: aiIsSetup, saveProfile: saveAIProfile } = useAIProfile(settings, updateSettings);
 
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>('__all__');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try { return (localStorage.getItem('flowya_view_mode') as ViewMode) || 'tasks'; }
+    catch { return 'tasks'; }
+  });
   const [filter, setFilter] = useState<FilterType>('in_progress');
   const [windowFocused, setWindowFocused] = useState(true);
   const [detailTodo, setDetailTodo] = useState<Todo | null>(null);
@@ -103,6 +109,15 @@ export default function App() {
     refetch: refetchTodos,
     isAllView,
   } = useTodos(selectedSpaceId, user?.id);
+
+  const {
+    notes,
+    loading: notesLoading,
+    createNote,
+    updateNote,
+    deleteNote,
+    isAllView: notesAllView,
+  } = useNotes(selectedSpaceId, user?.id);
 
   const {
     goals: weeklyGoals,
@@ -883,6 +898,11 @@ export default function App() {
     analytics.trackViewKanban(newFilter, spaceName);
   };
 
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    try { localStorage.setItem('flowya_view_mode', mode); } catch { /* ignore */ }
+  };
+
   const handleDelete = async (id: string) => {
     const todoToDelete = todos.find(t => t.id === id);
     if (!todoToDelete) return;
@@ -962,26 +982,6 @@ export default function App() {
         return bTime - aTime;
       }
 
-      const now = new Date();
-
-      const getUrgencyScore = (todo: typeof a): number => {
-        if (!todo.due_date) return 0;
-        const due = new Date(todo.due_date);
-        const diffMs = due.getTime() - now.getTime();
-        const diffHours = diffMs / (1000 * 60 * 60);
-
-        if (diffMs < 0) return 3;
-        if (diffHours <= 1) return 2;
-        return 0;
-      };
-
-      const aUrgency = getUrgencyScore(a);
-      const bUrgency = getUrgencyScore(b);
-
-      if (aUrgency !== bUrgency) {
-        return bUrgency - aUrgency;
-      }
-
       const aIsP0 = a.priority === 'P0';
       const bIsP0 = b.priority === 'P0';
       if (aIsP0 && !bIsP0) return -1;
@@ -994,26 +994,6 @@ export default function App() {
   const doneCount = todos.filter(t => t.status === 'done').length;
   const pendingCount = todos.filter(t => t.status !== 'done').length;
 
-  // Calculate urgency indicators by status
-  const urgencyByStatus = {
-    backlog: { hasOverdue: false, hasDueSoon: false },
-    in_progress: { hasOverdue: false, hasDueSoon: false },
-    done: { hasOverdue: false, hasDueSoon: false },
-  };
-
-  const now = new Date();
-  todos.forEach(t => {
-    if (t.status === 'done' || !t.due_date) return;
-    const due = new Date(t.due_date);
-    const diffMs = due.getTime() - now.getTime();
-    const diffHours = diffMs / (1000 * 60 * 60);
-
-    if (diffMs < 0) {
-      urgencyByStatus[t.status].hasOverdue = true;
-    } else if (diffHours <= 1) {
-      urgencyByStatus[t.status].hasDueSoon = true;
-    }
-  });
 
   // Swipe gesture handling for trackpad
   const swipeAccumulator = useRef(0);
@@ -1022,6 +1002,7 @@ export default function App() {
   const filters: FilterType[] = ['backlog', 'in_progress', 'done'];
 
   const handleSwipe = useCallback((e: WheelEvent) => {
+    if (viewMode !== 'tasks') return;
     if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) return;
 
     const swipeNow = Date.now();
@@ -1052,7 +1033,7 @@ export default function App() {
     swipeTimeout.current = setTimeout(() => {
       swipeAccumulator.current = 0;
     }, 150);
-  }, [filter, filters]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filter, filters, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Add wheel event listener for swipe gestures
   useEffect(() => {
@@ -1151,7 +1132,41 @@ export default function App() {
       />
 
       <div className="main-content">
-        {detailTodo ? (
+        {/* View mode toggle */}
+        <div className="view-mode-toggle">
+          <button
+            className={`view-mode-btn ${viewMode === 'notes' ? 'active' : ''}`}
+            onClick={() => handleViewModeChange('notes')}
+          >
+            <NotesIcon />
+            Notes
+          </button>
+          <button
+            className={`view-mode-btn ${viewMode === 'tasks' ? 'active' : ''}`}
+            onClick={() => handleViewModeChange('tasks')}
+          >
+            <TasksIcon />
+            Tasks
+          </button>
+        </div>
+
+        {viewMode === 'notes' ? (
+          <NotesView
+            notes={notes}
+            loading={notesLoading}
+            spaces={spaces}
+            isAllView={notesAllView}
+            onCreate={async (title, overrideSpaceId) => {
+              return await createNote(title, overrideSpaceId);
+            }}
+            onUpdate={(id, updates) => {
+              updateNote(id, updates);
+            }}
+            onDelete={(id) => {
+              deleteNote(id);
+            }}
+          />
+        ) : detailTodo ? (
           <TodoDetail
             todo={detailTodo}
             onUpdate={(id, updates) => {
@@ -1203,7 +1218,6 @@ export default function App() {
               pendingCount={pendingCount}
               priorityFilter={priorityFilter}
               onPriorityFilterChange={setPriorityFilter}
-              urgencyByStatus={urgencyByStatus}
             />
 
             {!hasGoalsThisWeek && aiIsSetup && (
@@ -1532,6 +1546,23 @@ function SearchIcon() {
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" />
       <path d="M9.5 9.5L12.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TasksIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <path d="M2 3H10M2 6H10M2 9H7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function NotesIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <path d="M3 1.5H9C9.55 1.5 10 2 10 2.5V9.5C10 10 9.55 10.5 9 10.5H3C2.45 10.5 2 10 2 9.5V2.5C2 2 2.45 1.5 3 1.5Z" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M4 4H8M4 6H8M4 8H6.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
     </svg>
   );
 }

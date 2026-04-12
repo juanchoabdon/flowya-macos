@@ -2,11 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import type { FilterType, TaskStatus, Priority } from '../types';
 import * as analytics from '../lib/analytics';
 
-interface UrgencyIndicator {
-  hasOverdue: boolean;
-  hasDueSoon: boolean;
-}
-
 interface FilterBarProps {
   filter: FilterType;
   onFilterChange: (filter: FilterType) => void;
@@ -15,7 +10,7 @@ interface FilterBarProps {
   pendingCount: number;
   priorityFilter: Priority | null;
   onPriorityFilterChange: (priority: Priority | null) => void;
-  urgencyByStatus?: Record<TaskStatus, UrgencyIndicator>;
+  urgencyByStatus?: Record<TaskStatus, { hasOverdue: boolean; hasDueSoon: boolean }>;
 }
 
 const PRIORITIES: (Priority | null)[] = [null, 'P0', 'P1', 'P2', 'P3'];
@@ -28,7 +23,6 @@ export function FilterBar({
   pendingCount,
   priorityFilter,
   onPriorityFilterChange,
-  urgencyByStatus,
 }: FilterBarProps) {
   const [dragOverTab, setDragOverTab] = useState<FilterType | null>(null);
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
@@ -78,13 +72,7 @@ export function FilterBar({
   return (
     <div className="filter-bar">
       <div className="filter-buttons">
-        {filters.map(({ key, label, status }) => {
-          // Get urgency indicator for this status (only show when not selected)
-          const urgency = status && urgencyByStatus?.[status];
-          const showOverdue = filter !== key && urgency?.hasOverdue;
-          const showDueSoon = filter !== key && !showOverdue && urgency?.hasDueSoon;
-          
-          return (
+        {filters.map(({ key, label, status }) => (
             <button
               key={key}
               className={`filter-btn ${filter === key ? 'active' : ''} ${dragOverTab === key ? 'drag-over' : ''}`}
@@ -94,11 +82,8 @@ export function FilterBar({
               onDrop={(e) => handleDrop(e, key, status)}
             >
               {label}
-              {showOverdue && <span className="urgency-dot overdue" />}
-              {showDueSoon && <span className="urgency-dot due-soon" />}
             </button>
-          );
-        })}
+        ))}
       </div>
       
       <div className="filter-bar-right">

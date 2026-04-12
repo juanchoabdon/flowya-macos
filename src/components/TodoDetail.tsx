@@ -118,14 +118,7 @@ const formatDueDate = (dueDate: string | null): string => {
   const diffMins = Math.round(diffMs / (1000 * 60));
   const diffHours = Math.round(diffMs / (1000 * 60 * 60));
   
-  if (diffMs < 0) {
-    const absMins = Math.abs(Math.round(diffMs / (1000 * 60)));
-    const absHours = Math.abs(Math.round(diffMs / (1000 * 60 * 60)));
-    const absDays = Math.abs(Math.round(diffMs / (1000 * 60 * 60 * 24)));
-    if (absMins < 60) return `${absMins}m late`;
-    if (absHours < 24) return `${absHours}h late`;
-    return `${absDays}d late`;
-  }
+  if (diffMs < 0) return 'Set ETA';
   
   // Show relative time for short durations
   if (diffMins <= 59) return `${diffMins}m`;
@@ -142,19 +135,6 @@ const formatDueDate = (dueDate: string | null): string => {
   return due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-const getDueDateClass = (dueDate: string | null): string => {
-  if (!dueDate) return '';
-  
-  const now = new Date();
-  const due = parseDueDate(dueDate);
-  
-  const diffMs = due.getTime() - now.getTime();
-  const diffHours = diffMs / (1000 * 60 * 60);
-  
-  if (diffMs < 0) return 'overdue';
-  if (diffHours <= 3) return 'due-soon';
-  return '';
-};
 
 const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bg: string }> = {
   backlog: { label: 'Backlog', color: '#8E8E93', bg: 'rgba(142, 142, 147, 0.2)' },
@@ -510,7 +490,7 @@ export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spa
           <div className="due-date-field" ref={dueDateRef}>
             <button
               type="button"
-              className={`due-date-btn ${todo.due_date ? getDueDateClass(todo.due_date) : ''}`}
+              className="due-date-btn"
               onClick={() => setDueDateOpen(!dueDateOpen)}
             >
               <CalendarIcon />
