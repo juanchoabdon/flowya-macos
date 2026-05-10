@@ -3,12 +3,11 @@ import { SparkleIcon } from './AIOnboarding';
 interface AIHubModalProps {
   onPrioritize: () => void;
   onRename: () => void;
-  onWeeklyPlan: () => void;
   onDuplicates: () => void;
   onClose: () => void;
 }
 
-export function AIHubModal({ onPrioritize, onRename: _onRename, onWeeklyPlan, onDuplicates, onClose }: AIHubModalProps) {
+export function AIHubModal({ onPrioritize, onRename: _onRename, onDuplicates, onClose }: AIHubModalProps) {
   return (
     <div className="ai-hub-overlay" onClick={onClose}>
       <div className="ai-hub-modal" onClick={e => e.stopPropagation()}>
@@ -30,17 +29,6 @@ export function AIHubModal({ onPrioritize, onRename: _onRename, onWeeklyPlan, on
             <div className="ai-hub-card-body">
               <span className="ai-hub-card-title">Prioritize tasks</span>
               <span className="ai-hub-card-desc">Reorder, reprioritize, and clean up done tasks</span>
-            </div>
-            <ChevronRight />
-          </button>
-
-          <button className="ai-hub-card" onClick={onWeeklyPlan}>
-            <div className="ai-hub-card-icon">
-              <WeeklyPlanIcon />
-            </div>
-            <div className="ai-hub-card-body">
-              <span className="ai-hub-card-title">Plan my week</span>
-              <span className="ai-hub-card-desc">Set 5 weekly goals and let AI map them to tasks</span>
             </div>
             <ChevronRight />
           </button>
@@ -75,19 +63,6 @@ function PrioritizeIcon() {
       <path d="M3 5H17M3 10H13M3 15H9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
       <circle cx="16" cy="12" r="2" fill="#FFD54F" opacity="0.8"/>
       <circle cx="12" cy="16" r="1.5" fill="#FF6B9D" opacity="0.6"/>
-    </svg>
-  );
-}
-
-function WeeklyPlanIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-      <path d="M3 8H17" stroke="currentColor" strokeWidth="1.5"/>
-      <path d="M7 2V5M13 2V5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-      <circle cx="7" cy="12" r="1" fill="#FFD54F"/>
-      <circle cx="10" cy="12" r="1" fill="#FF6B9D"/>
-      <circle cx="13" cy="12" r="1" fill="#4FC3F7"/>
     </svg>
   );
 }

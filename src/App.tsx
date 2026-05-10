@@ -16,23 +16,18 @@ import { AIOnboarding } from './components/AIOnboarding';
 import { AIRecommendation } from './components/AIRecommendation';
 import { AIHubModal } from './components/AIHubModal';
 import { AIRenameModal } from './components/AIRenameModal';
-import { WeeklyPlanningModal } from './components/WeeklyPlanningModal';
-import { WeeklyFocusBanner } from './components/WeeklyFocusBanner';
-import { WeeklyPlanNudge } from './components/WeeklyPlanNudge';
 import { useStreak } from './hooks/useStreak';
 import { useAIProfile } from './hooks/useAIProfile';
-import { useWeeklyGoals } from './hooks/useWeeklyGoals';
 import { AIDuplicatesModal } from './components/AIDuplicatesModal';
 import { RecurringTasksModal } from './components/RecurringTasksModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { useRecurringTasks } from './hooks/useRecurringTasks';
 import { useAgent } from './hooks/useAgent';
 import { AgentOverlay, AgentConfirmDialog } from './components/AgentOverlay';
-import { prioritizeTasks, renameTasks, planWeek, findDuplicates } from './lib/openai';
-import { upsertWeeklyGoals, getMonday, linkTodoToGoal, unlinkTodoFromGoal } from './lib/supabase';
+import { prioritizeTasks, renameTasks, findDuplicates } from './lib/openai';
 import { NotesView } from './components/NotesView';
 import { useNotes } from './hooks/useNotes';
-import type { FilterType, ViewMode, Todo, Priority, AIAnalysisResult, AIRenameResult, AIRenameSuggestion, AIWeeklyPlanResult, AIDuplicatesResult } from './types';
+import type { FilterType, ViewMode, Todo, Priority, AIAnalysisResult, AIRenameResult, AIRenameSuggestion, AIDuplicatesResult } from './types';
 import * as analytics from './lib/analytics';
 
 export default function App() {
@@ -78,13 +73,6 @@ export default function App() {
   const [aiRenameLoading, setAIRenameLoading] = useState(false);
   const [aiRenameError, setAIRenameError] = useState<string | null>(null);
 
-  // Weekly Planning state
-  const [showWeeklyPlanning, setShowWeeklyPlanning] = useState(false);
-  const [weeklyPlanInitialSpace, setWeeklyPlanInitialSpace] = useState<string | undefined>(undefined);
-  const [weeklyPlanResult, setWeeklyPlanResult] = useState<AIWeeklyPlanResult | null>(null);
-  const [weeklyPlanLoading, setWeeklyPlanLoading] = useState(false);
-  const [weeklyPlanError, setWeeklyPlanError] = useState<string | null>(null);
-
   // Recurring Tasks state
   const [showRecurringTasks, setShowRecurringTasks] = useState(false);
 
@@ -120,16 +108,6 @@ export default function App() {
   } = useNotes(selectedSpaceId, user?.id);
 
   const {
-    goals: weeklyGoals,
-    lastWeekGoals,
-    hasGoalsThisWeek,
-    refetch: refetchWeeklyGoals,
-    syncCompletion: syncWeeklyGoalCompletion,
-    toggleGoalCompletion,
-    toggleLastWeekGoalCompletion,
-  } = useWeeklyGoals(user?.id);
-
-  const {
     recurringTasks,
     createRecurringTask: createRecurring,
     updateRecurringTask: updateRecurring,
@@ -150,13 +128,6 @@ export default function App() {
       setAgentConfirmTask(null);
     }
   };
-
-  // Sync weekly goal completion whenever todos change
-  useEffect(() => {
-    if (weeklyGoals.length > 0 && todos.length > 0) {
-      syncWeeklyGoalCompletion(todos);
-    }
-  }, [todos, weeklyGoals.length, syncWeeklyGoalCompletion]);
 
   // Detect fresh signup: account created less than 24 hours ago
   const isNewAccount = useCallback(() => {
@@ -190,43 +161,6 @@ export default function App() {
     }
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Weekly planning auto-trigger helpers
-  const shouldShowWeeklyPlanning = useCallback(() => {
-    if (!aiIsSetup) return false;
-    if (hasGoalsThisWeek) return false;
-    const mondayStr = getMonday();
-    const lastPlanned = localStorage.getItem('flowya_last_weekly_plan_date');
-    if (lastPlanned === mondayStr) return false;
-    const snoozedUntil = localStorage.getItem('flowya_weekly_plan_snoozed_until');
-    if (snoozedUntil && Date.now() < parseInt(snoozedUntil, 10)) return false;
-
-    const day = new Date().getDay();
-    const isSunOrMon = day === 0 || day === 1;
-    const missedLastWeek = lastWeekGoals.length === 0;
-
-    return isSunOrMon || missedLastWeek;
-  }, [aiIsSetup, hasGoalsThisWeek, lastWeekGoals.length]);
-
-  const markWeeklyPlanningDone = useCallback(() => {
-    localStorage.setItem('flowya_last_weekly_plan_date', getMonday());
-    localStorage.removeItem('flowya_weekly_plan_snoozed_until');
-  }, []);
-
-  const snoozeWeeklyPlanning = useCallback(() => {
-    const twoHoursMs = 2 * 60 * 60 * 1000;
-    localStorage.setItem('flowya_weekly_plan_snoozed_until', String(Date.now() + twoHoursMs));
-    setShowWeeklyPlanning(false);
-    setWeeklyPlanResult(null);
-    setWeeklyPlanError(null);
-    setWeeklyPlanInitialSpace(undefined);
-  }, []);
-
-  const checkWeeklyPlanningAfterSummary = useCallback(() => {
-    if (shouldShowWeeklyPlanning()) {
-      setTimeout(() => { exitPipIfNeeded(); setShowWeeklyPlanning(true); }, 400);
-    }
-  }, [shouldShowWeeklyPlanning]);
-
   // Refresh dock icon after login and check auto-trigger chain:
   // AI Onboarding (highest) > Daily Summary > Weekly Planning (lowest)
   // Skip all auto-popups for brand-new accounts
@@ -246,13 +180,11 @@ export default function App() {
             analytics.trackViewDailySummary('morning');
             setShowDailySummary(true);
           }, 500);
-        } else if (shouldShowWeeklyPlanning()) {
-          setTimeout(() => { exitPipIfNeeded(); setShowWeeklyPlanning(true); }, 500);
         }
       }
     }
     prevUserRef.current = user?.id;
-  }, [user?.id, aiIsSetup, shouldShowWeeklyPlanning, isNewAccount]);
+  }, [user?.id, aiIsSetup, isNewAccount]);
 
   // Create default space if none exist (skip if onboarding is handling it)
   useEffect(() => {
@@ -317,14 +249,12 @@ export default function App() {
               analytics.trackViewDailySummary('morning');
               setShowDailySummary(true);
             }, 500);
-          } else if (shouldShowWeeklyPlanning()) {
-            setTimeout(() => { exitPipIfNeeded(); setShowWeeklyPlanning(true); }, 500);
           }
         }
       });
       return unsubscribe;
     }
-  }, [aiIsSetup, shouldShowWeeklyPlanning]);
+  }, [aiIsSetup]);
 
   // Listen for PIP mode changes
   useEffect(() => {
@@ -574,9 +504,6 @@ export default function App() {
           exitPipIfNeeded();
           analytics.trackViewDailySummary('morning');
           setShowDailySummary(true);
-        } else if (shouldShowWeeklyPlanning()) {
-          exitPipIfNeeded();
-          setShowWeeklyPlanning(true);
         }
       }, 600);
     } else {
@@ -599,7 +526,6 @@ export default function App() {
         todos,
         spaces,
         scope,
-        weeklyGoals,
       );
       setAIResult(result);
     } catch (err) {
@@ -625,7 +551,6 @@ export default function App() {
         todos,
         spaces,
         scope,
-        weeklyGoals,
       );
       setAIResult(result);
     } catch (err) {
@@ -729,103 +654,6 @@ export default function App() {
     await refetchTodos();
     analytics.trackAIDuplicatesAccept(removeTodoIds.length);
     showSuccess(`${removeTodoIds.length} duplicate${removeTodoIds.length !== 1 ? 's' : ''} removed ✓`);
-  };
-
-  // Weekly Planning handlers
-  const handleAIHubWeeklyPlan = () => {
-    setShowAIHub(false);
-    setShowWeeklyPlanning(true);
-  };
-
-  const handleWeeklyPlan = async (objectives: Array<{ spaceId: string; spaceName: string; goals: string[] }>) => {
-    setWeeklyPlanLoading(true);
-    setWeeklyPlanError(null);
-    setWeeklyPlanResult(null);
-
-    try {
-      const profile = { roles: aiRoles || {}, context: aiContext || '' };
-      const result = await planWeek(profile, objectives, todos, spaces);
-      setWeeklyPlanResult(result);
-    } catch (err) {
-      console.error('[AI] Weekly plan failed:', err);
-      setWeeklyPlanError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
-    } finally {
-      setWeeklyPlanLoading(false);
-    }
-  };
-
-  const handleAcceptWeeklyPlan = async () => {
-    if (!weeklyPlanResult || !user?.id) return;
-
-    // Collect all linked todo IDs per goal
-    const goalTodoIds: Record<string, string[]> = {};
-
-    for (const mapping of weeklyPlanResult.mappings) {
-      const goalKey = `${mapping.spaceId}::${mapping.goalPosition}`;
-      if (!goalTodoIds[goalKey]) goalTodoIds[goalKey] = [];
-      let linkedTodoId: string | null = null;
-
-      if (mapping.action === 'map_existing' && mapping.todoId) {
-        markLocalChange(mapping.todoId);
-        const updates: Record<string, unknown> = { priority: mapping.newPriority };
-        if (mapping.newDueDate) updates.due_date = mapping.newDueDate;
-        await updateTodo(mapping.todoId, updates as { priority?: Priority; due_date?: string });
-        linkedTodoId = mapping.todoId;
-      } else if (mapping.action === 'create_new' && mapping.newTaskName) {
-        const newTodo = await createTodo(mapping.newTaskName);
-        if (newTodo) {
-          markLocalChange(newTodo.id);
-          const updates: Record<string, unknown> = {
-            priority: mapping.newPriority,
-            space_id: mapping.spaceId,
-          };
-          if (mapping.newDueDate) updates.due_date = mapping.newDueDate;
-          await updateTodo(newTodo.id, updates as { priority?: Priority; due_date?: string; space_id?: string });
-          linkedTodoId = newTodo.id;
-        }
-      }
-
-      if (linkedTodoId) goalTodoIds[goalKey].push(linkedTodoId);
-    }
-
-    // One DB row per unique goal, with all linked todo IDs
-    const seenGoals = new Set<string>();
-    const goalRows: Array<{ space_id: string; goal_text: string; position: number; linked_todo_ids: string[] }> = [];
-    for (const mapping of weeklyPlanResult.mappings) {
-      const goalKey = `${mapping.spaceId}::${mapping.goalPosition}`;
-      if (seenGoals.has(goalKey)) continue;
-      seenGoals.add(goalKey);
-      goalRows.push({
-        space_id: mapping.spaceId,
-        goal_text: mapping.goalText,
-        position: mapping.goalPosition,
-        linked_todo_ids: goalTodoIds[goalKey] || [],
-      });
-    }
-
-    // Apply reprioritizations
-    for (const rec of weeklyPlanResult.reprioritizations) {
-      const todo = todos.find(t => t.id === rec.todoId);
-      if (!todo) continue;
-      markLocalChange(rec.todoId);
-      const updates: Record<string, unknown> = {};
-      if (todo.priority !== rec.newPriority) updates.priority = rec.newPriority;
-      if (rec.newDueDate) updates.due_date = rec.newDueDate;
-      if (Object.keys(updates).length > 0) {
-        await updateTodo(rec.todoId, updates as { priority?: Priority; due_date?: string });
-      }
-    }
-
-    // Save goals to database
-    await upsertWeeklyGoals(user.id, goalRows);
-    markWeeklyPlanningDone();
-    localStorage.setItem('flowya_weekly_plan_intro_seen', 'true');
-
-    setShowWeeklyPlanning(false);
-    setWeeklyPlanResult(null);
-    await refetchTodos();
-    await refetchWeeklyGoals();
-    showSuccess('Weekly plan applied ✓');
   };
 
   const handleStatusChange = (todoId: string, status: 'backlog' | 'in_progress' | 'done') => {
@@ -1189,17 +1017,6 @@ export default function App() {
             aiRoles={aiRoles}
             aiContext={aiContext}
             aiSetupComplete={aiIsSetup}
-            weeklyGoals={weeklyGoals}
-            onLinkGoal={async (goalId, todoId) => {
-              await linkTodoToGoal(goalId, todoId);
-              await refetchWeeklyGoals();
-              syncWeeklyGoalCompletion(todos);
-            }}
-            onUnlinkGoal={async (goalId, todoId) => {
-              await unlinkTodoFromGoal(goalId, todoId);
-              await refetchWeeklyGoals();
-              syncWeeklyGoalCompletion(todos);
-            }}
             onExecuteWithAgent={handleAgentExecute}
             agentRunning={agent.isRunning}
           />
@@ -1219,46 +1036,6 @@ export default function App() {
               priorityFilter={priorityFilter}
               onPriorityFilterChange={setPriorityFilter}
             />
-
-            {!hasGoalsThisWeek && aiIsSetup && (
-              <WeeklyPlanNudge onPlan={() => {
-                setWeeklyPlanResult(null);
-                setWeeklyPlanError(null);
-                setWeeklyPlanInitialSpace(undefined);
-                setShowWeeklyPlanning(true);
-              }} />
-            )}
-
-            {hasGoalsThisWeek && (
-              <WeeklyFocusBanner
-                goals={weeklyGoals}
-                spaces={spaces}
-                todos={todos}
-                isAllView={isAllView}
-                selectedSpaceId={selectedSpaceId}
-                onOpenGoal={(todoId) => {
-                  const todo = todos.find(t => t.id === todoId);
-                  if (todo) setDetailTodo(todo);
-                }}
-                onEdit={(spaceId) => {
-                  setWeeklyPlanResult(null);
-                  setWeeklyPlanError(null);
-                  setWeeklyPlanInitialSpace(spaceId);
-                  setShowWeeklyPlanning(true);
-                }}
-                onLinkTask={async (goalId, todoId) => {
-                  await linkTodoToGoal(goalId, todoId);
-                  await refetchWeeklyGoals();
-                  syncWeeklyGoalCompletion(todos);
-                }}
-                onUnlinkTask={async (goalId, todoId) => {
-                  await unlinkTodoFromGoal(goalId, todoId);
-                  await refetchWeeklyGoals();
-                  syncWeeklyGoalCompletion(todos);
-                }}
-                onToggleComplete={toggleGoalCompletion}
-              />
-            )}
 
             <TodoList
               todos={filteredTodos}
@@ -1349,7 +1126,7 @@ export default function App() {
       {/* Daily Summary Modal (morning greeting) */}
       {showDailySummary && (
         <DailySummary
-          onClose={() => { setShowDailySummary(false); checkWeeklyPlanningAfterSummary(); }}
+          onClose={() => setShowDailySummary(false)}
           streakBestYesterday={getYesterdayBestStreak()}
         />
       )}
@@ -1393,7 +1170,6 @@ export default function App() {
         <AIHubModal
           onPrioritize={handleAIHubPrioritize}
           onRename={handleAIHubRename}
-          onWeeklyPlan={handleAIHubWeeklyPlan}
           onDuplicates={handleAIHubDuplicates}
           onClose={() => setShowAIHub(false)}
         />
@@ -1418,25 +1194,6 @@ export default function App() {
           spaces={spaces}
           onAccept={handleAcceptDuplicates}
           onDismiss={() => { setShowDuplicates(false); setDupResult(null); setDupError(null); }}
-        />
-      )}
-
-      {showWeeklyPlanning && (
-        <WeeklyPlanningModal
-          spaces={spaces}
-          lastWeekGoals={lastWeekGoals}
-          currentWeekGoals={weeklyGoals}
-          todos={todos}
-          result={weeklyPlanResult}
-          loading={weeklyPlanLoading}
-          error={weeklyPlanError}
-          isFirstTime={localStorage.getItem('flowya_weekly_plan_intro_seen') !== 'true'}
-          initialSpaceId={weeklyPlanInitialSpace}
-          onPlan={handleWeeklyPlan}
-          onAccept={handleAcceptWeeklyPlan}
-          onDismiss={snoozeWeeklyPlanning}
-          onSnooze={snoozeWeeklyPlanning}
-          onToggleLastWeekGoal={toggleLastWeekGoalCompletion}
         />
       )}
 

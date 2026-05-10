@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import type { Todo, TaskStatus, Space, Priority, WeeklyGoal } from '../types';
+import type { Todo, TaskStatus, Space, Priority } from '../types';
 import { RichTextEditor, RichTextEditorRef } from './RichTextEditor';
 import { suggestTaskName } from '../lib/openai';
 import * as analytics from '../lib/analytics';
@@ -16,9 +16,6 @@ interface TodoDetailProps {
   aiRoles?: Record<string, string> | null;
   aiContext?: string | null;
   aiSetupComplete?: boolean;
-  weeklyGoals?: WeeklyGoal[];
-  onLinkGoal?: (goalId: string, todoId: string) => void;
-  onUnlinkGoal?: (goalId: string, todoId: string) => void;
   onExecuteWithAgent?: (taskText: string, taskDescription?: string) => void;
   agentRunning?: boolean;
 }
@@ -142,7 +139,7 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bg: stri
   done: { label: 'Done', color: '#30D158', bg: 'rgba(48, 209, 88, 0.2)' },
 };
 
-export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spaces, onChangeSpace, focusDescription: _focusDescription, aiRoles, aiContext, aiSetupComplete, weeklyGoals, onLinkGoal, onUnlinkGoal, onExecuteWithAgent: _onExecuteWithAgent, agentRunning: _agentRunning }: TodoDetailProps) {
+export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spaces, onChangeSpace, focusDescription: _focusDescription, aiRoles, aiContext, aiSetupComplete, onExecuteWithAgent: _onExecuteWithAgent, agentRunning: _agentRunning }: TodoDetailProps) {
   const [title, setTitle] = useState(todo.text);
   const [description, setDescription] = useState(todo.description || '');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -151,7 +148,6 @@ export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spa
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [spaceOpen, setSpaceOpen] = useState(false);
   const [showCustomDate, setShowCustomDate] = useState(false);
-  const [goalPickerOpen, setGoalPickerOpen] = useState(false);
   const [customDay, setCustomDay] = useState(new Date().getDate());
   const [customMonth, setCustomMonth] = useState(new Date().getMonth());
   const [customHour, setCustomHour] = useState(18); // Default 6 PM
@@ -635,67 +631,6 @@ export function TodoDetail({ todo, onUpdate, onStatusChange, onClose, space, spa
           </div>
         )}
 
-        {/* Weekly goal link */}
-        {weeklyGoals && weeklyGoals.length > 0 && onLinkGoal && onUnlinkGoal && (() => {
-          const spaceGoals = weeklyGoals.filter(g => g.space_id === todo.space_id);
-          if (spaceGoals.length === 0) return null;
-
-          const linkedGoal = spaceGoals.find(g =>
-            (g.linked_todo_ids || []).includes(todo.id) ||
-            g.linked_todo_id === todo.id
-          );
-          const availableGoals = spaceGoals.filter(g => g !== linkedGoal);
-
-          return (
-            <div className="goal-link-field">
-              {linkedGoal ? (
-                <div className="goal-link-chip linked">
-                  <GoalIcon />
-                  <span className="goal-link-text">{linkedGoal.goal_text}</span>
-                  <button
-                    className="goal-link-remove"
-                    onClick={() => onUnlinkGoal(linkedGoal.id, todo.id)}
-                    title="Unlink from goal"
-                  >
-                    ×
-                  </button>
-                </div>
-              ) : (
-                <div className="goal-link-picker-wrap">
-                  <button
-                    className="goal-link-chip unlinked"
-                    onClick={() => setGoalPickerOpen(!goalPickerOpen)}
-                  >
-                    <GoalIcon />
-                    <span className="goal-link-text">Link to weekly goal</span>
-                    <ChevronIcon />
-                  </button>
-                  {goalPickerOpen && (
-                    <div className="goal-link-dropdown">
-                      {availableGoals.map(g => (
-                        <button
-                          key={g.id}
-                          className="goal-link-option"
-                          onClick={() => {
-                            onLinkGoal(g.id, todo.id);
-                            setGoalPickerOpen(false);
-                          }}
-                        >
-                          <GoalIcon />
-                          {g.goal_text}
-                        </button>
-                      ))}
-                      {availableGoals.length === 0 && (
-                        <div className="goal-link-option disabled">No goals available</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
         <RichTextEditor
           ref={descriptionRef}
           content={description}
@@ -733,16 +668,6 @@ function ChevronIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-function GoalIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="goal-link-icon">
-      <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1"/>
-      <circle cx="6" cy="6" r="2.5" stroke="currentColor" strokeWidth="1"/>
-      <circle cx="6" cy="6" r="0.8" fill="currentColor"/>
     </svg>
   );
 }
