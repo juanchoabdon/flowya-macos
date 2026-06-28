@@ -229,6 +229,6 @@ echo -e "${YELLOW}Committing version bump and pushing...${NC}"
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 git add -A
 git commit -m "release: v$NEW_VERSION" || echo -e "${YELLOW}Nothing new to commit${NC}"
-git push origin "$CURRENT_BRANCH"
+git push https://${GH_TOKEN}@github.com/juanchoabdon/flowya-macos.git "$CURRENT_BRANCH"
 
 echo -e "${GREEN}🎉 Done! Release v$NEW_VERSION is live!${NC}"

@@ -170,7 +170,9 @@ export default function App() {
       window.windowApi?.refreshDock();
 
       if (isNewAccount()) {
-        setTimeout(() => setShowOnboarding(true), 600);
+        if (spaces.length === 0) {
+          setTimeout(() => setShowOnboarding(true), 600);
+        }
       } else {
         if (!aiIsSetup) {
           // AI Onboarding takes priority -- its own useEffect handles showing it
