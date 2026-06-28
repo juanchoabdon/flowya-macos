@@ -20,7 +20,6 @@ import { useStreak } from './hooks/useStreak';
 import { useAIProfile } from './hooks/useAIProfile';
 import { AIDuplicatesModal } from './components/AIDuplicatesModal';
 import { RecurringTasksModal } from './components/RecurringTasksModal';
-import { OnboardingModal } from './components/OnboardingModal';
 import { useRecurringTasks } from './hooks/useRecurringTasks';
 import { useAgent } from './hooks/useAgent';
 import { AgentOverlay, AgentConfirmDialog } from './components/AgentOverlay';
@@ -75,9 +74,6 @@ export default function App() {
 
   // Recurring Tasks state
   const [showRecurringTasks, setShowRecurringTasks] = useState(false);
-
-  // New user onboarding state
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Duplicates state
   const [showDuplicates, setShowDuplicates] = useState(false);
@@ -164,7 +160,6 @@ export default function App() {
   // Refresh dock icon after login and check auto-trigger chain:
   // AI Onboarding (highest) > Daily Summary (lowest)
   const prevUserRef = useRef<string | undefined>(undefined);
-  const hasTriggeredOnboarding = useRef(false);
   useEffect(() => {
     if (prevUserRef.current === undefined && user?.id) {
       window.windowApi?.refreshDock();
@@ -185,27 +180,17 @@ export default function App() {
   }, [user?.id, aiIsSetup, isNewAccount]);
 
   // Show onboarding for new accounts only once spaces have loaded and there are none
-  useEffect(() => {
-    if (
-      isNewAccount() &&
-      !spacesLoading &&
-      spaces.length === 0 &&
-      !hasTriggeredOnboarding.current
-    ) {
-      hasTriggeredOnboarding.current = true;
-      setTimeout(() => setShowOnboarding(true), 600);
-    }
-  }, [isNewAccount, spacesLoading, spaces.length]);
+  // DISABLED - onboarding flow removed
 
   // Create default space if none exist (skip if onboarding is handling it)
   useEffect(() => {
-    if (!spacesLoading && spaces.length === 0 && !showOnboarding && !isNewAccount()) {
+    if (!spacesLoading && spaces.length === 0 && !isNewAccount()) {
       createSpace('Personal').then(space => {
         if (space) setSelectedSpaceId(space.id);
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spacesLoading, spaces.length, showOnboarding]);
+  }, [spacesLoading, spaces.length]);
 
   // Save last selected space
   useEffect(() => {
@@ -1121,17 +1106,6 @@ export default function App() {
         onCreate={createRecurring}
         onUpdate={updateRecurring}
         onDelete={deleteRecurring}
-      />
-
-      {/* New User Onboarding */}
-      <OnboardingModal
-        isOpen={showOnboarding}
-        onClose={() => setShowOnboarding(false)}
-        spaces={spaces}
-        onCreateSpace={createSpace}
-        onDeleteSpace={deleteSpace}
-        onSaveAIProfile={saveAIProfile}
-        onCreateTodo={createTodo}
       />
 
       {/* Daily Summary Modal (morning greeting) */}
