@@ -28,9 +28,9 @@ else
     exit 1
 fi
 
-# Supabase credentials for changelog upload
+# Supabase credentials for changelog upload (loaded from .env.release)
 SUPABASE_URL="https://snavlocwhvweqglshezm.supabase.co"
-SUPABASE_SERVICE_KEY="REDACTED_SERVICE_KEY"
+SUPABASE_SERVICE_KEY="${SUPABASE_SERVICE_KEY:-}"
 
 # Verify required environment variables
 if [ -z "$GH_TOKEN" ]; then
