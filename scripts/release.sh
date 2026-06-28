@@ -29,8 +29,8 @@ else
 fi
 
 # Supabase credentials for changelog upload
-SUPABASE_URL="https://pgihkbilfkaxvabtsgyf.supabase.co"
-SUPABASE_SERVICE_KEY="REDACTED_OLD_SERVICE_KEY"
+SUPABASE_URL="https://snavlocwhvweqglshezm.supabase.co"
+SUPABASE_SERVICE_KEY="REDACTED_SERVICE_KEY"
 
 # Verify required environment variables
 if [ -z "$GH_TOKEN" ]; then
@@ -226,8 +226,9 @@ fi
 
 # Commit version bump and push everything
 echo -e "${YELLOW}Committing version bump and pushing...${NC}"
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 git add -A
 git commit -m "release: v$NEW_VERSION" || echo -e "${YELLOW}Nothing new to commit${NC}"
-git push origin main
+git push origin "$CURRENT_BRANCH"
 
 echo -e "${GREEN}🎉 Done! Release v$NEW_VERSION is live!${NC}"
