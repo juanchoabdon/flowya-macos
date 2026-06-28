@@ -162,18 +162,14 @@ export default function App() {
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Refresh dock icon after login and check auto-trigger chain:
-  // AI Onboarding (highest) > Daily Summary > Weekly Planning (lowest)
-  // Skip all auto-popups for brand-new accounts
+  // AI Onboarding (highest) > Daily Summary (lowest)
   const prevUserRef = useRef<string | undefined>(undefined);
+  const hasTriggeredOnboarding = useRef(false);
   useEffect(() => {
     if (prevUserRef.current === undefined && user?.id) {
       window.windowApi?.refreshDock();
 
-      if (isNewAccount()) {
-        if (spaces.length === 0) {
-          setTimeout(() => setShowOnboarding(true), 600);
-        }
-      } else {
+      if (!isNewAccount()) {
         if (!aiIsSetup) {
           // AI Onboarding takes priority -- its own useEffect handles showing it
         } else if (shouldShowDailySummary()) {
@@ -187,6 +183,19 @@ export default function App() {
     }
     prevUserRef.current = user?.id;
   }, [user?.id, aiIsSetup, isNewAccount]);
+
+  // Show onboarding for new accounts only once spaces have loaded and there are none
+  useEffect(() => {
+    if (
+      isNewAccount() &&
+      !spacesLoading &&
+      spaces.length === 0 &&
+      !hasTriggeredOnboarding.current
+    ) {
+      hasTriggeredOnboarding.current = true;
+      setTimeout(() => setShowOnboarding(true), 600);
+    }
+  }, [isNewAccount, spacesLoading, spaces.length]);
 
   // Create default space if none exist (skip if onboarding is handling it)
   useEffect(() => {
