@@ -25,6 +25,7 @@ interface GlassBarProps {
   aiProfileSetup?: boolean;
   onEnterPip?: () => void;
   onOpenRecurringTasks?: () => void;
+  onOpenConnectAI?: () => void;
   streakCount?: number;
   streakActive?: boolean;
   showFlame?: boolean;
@@ -53,6 +54,7 @@ export function GlassBar({
   showFlame = false,
   onEnterPip,
   onOpenRecurringTasks,
+  onOpenConnectAI,
 }: GlassBarProps) {
   const isAllSelected = selectedSpaceId === ALL_SPACES_ID;
   const [hasUnseenUpdates, markUpdatesSeen] = useHasUnseenUpdates();
@@ -440,6 +442,19 @@ export function GlassBar({
                 <RecurringIcon />
                 <span>Daily Tasks</span>
               </div>
+
+              {onOpenConnectAI && (
+                <div
+                  className="dropdown-item"
+                  onClick={() => {
+                    onOpenConnectAI();
+                    setAccountMenuOpen(false);
+                  }}
+                >
+                  <AIProfileIcon size={14} />
+                  <span>Connect with AI</span>
+                </div>
+              )}
 
               {aiProfileSetup && onEditAIProfile && (
                 <div

@@ -1,5 +1,4 @@
 import type { Settings } from '../types';
-import { ConnectAI } from './ConnectAI';
 
 interface SettingsPanelProps {
   settings: Settings;
@@ -67,8 +66,6 @@ export function SettingsPanel({ settings, onUpdate, onClose }: SettingsPanelProp
             </button>
           </div>
           
-          <ConnectAI />
-
           <div className="shortcut-hint">
             <kbd className="kbd">⌘</kbd> + <kbd className="kbd">⇧</kbd> + <kbd className="kbd">Space</kbd>
             <span style={{ marginLeft: 8 }}>to toggle window</span>
