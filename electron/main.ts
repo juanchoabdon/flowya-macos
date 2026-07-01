@@ -153,7 +153,7 @@ function createWindow(): void {
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
           "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
           "font-src 'self' https://fonts.gstatic.com data:; " +
-          "connect-src 'self' https://*.amplitude.com https://*.supabase.co wss://*.supabase.co https://api.anthropic.com; " +
+          "connect-src 'self' https://*.amplitude.com https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://flowya-mcp.vercel.app; " +
           "img-src 'self' data: blob:;"
         ]
       }
