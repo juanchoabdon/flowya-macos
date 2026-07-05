@@ -1161,8 +1161,6 @@ export default function App() {
                     ? (spaces[0]?.name || 'Personal')
                     : (selectedSpace?.name || 'Unknown');
                   analytics.trackNewTodo(selectedSpaceId || '', spaceName);
-                  setDetailTodo(result);
-                  setFocusDescription(true);
                 }
                 return result;
               }}
