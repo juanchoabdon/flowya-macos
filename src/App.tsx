@@ -1035,6 +1035,7 @@ export default function App() {
         streakActive={streakActive}
         showFlame={showFlame}
         onOpenRecurringTasks={() => setShowRecurringTasks(true)}
+        onOpenConnectAI={() => setShowConnectAI(true)}
       />
 
       <div className="main-content">
