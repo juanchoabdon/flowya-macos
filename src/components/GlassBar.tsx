@@ -3,6 +3,7 @@ import type { Space, Settings } from '../types';
 import { SPACE_COLORS } from '../types';
 import { ALL_SPACES_ID } from '../hooks/useTodos';
 import { useHasUnseenUpdates } from './WhatsNewModal';
+import { FREE_SPACE_LIMIT } from '../lib/limits';
 import * as analytics from '../lib/analytics';
 
 interface GlassBarProps {
@@ -23,6 +24,8 @@ interface GlassBarProps {
   onOpenRecurringTasks?: () => void;
   onOpenConnectAI?: () => void;
   onOpenMembership?: () => void;
+  isPro?: boolean;
+  onUpsellSpaces?: () => void;
   streakCount?: number;
   streakActive?: boolean;
   showFlame?: boolean;
@@ -49,6 +52,8 @@ export function GlassBar({
   onOpenRecurringTasks,
   onOpenConnectAI,
   onOpenMembership,
+  isPro = false,
+  onUpsellSpaces,
 }: GlassBarProps) {
   const isAllSelected = selectedSpaceId === ALL_SPACES_ID;
   const [hasUnseenUpdates, markUpdatesSeen] = useHasUnseenUpdates();
@@ -345,7 +350,16 @@ export function GlassBar({
               ) : (
                 <div
                   className="dropdown-item"
-                  onClick={() => setShowNewSpaceInput(true)}
+                  onClick={() => {
+                    // Free tier is capped at FREE_SPACE_LIMIT spaces; hitting the
+                    // wall opens the contextual Pro upsell instead of the input.
+                    if (!isPro && spaces.length >= FREE_SPACE_LIMIT) {
+                      setDropdownOpen(false);
+                      onUpsellSpaces?.();
+                      return;
+                    }
+                    setShowNewSpaceInput(true);
+                  }}
                 >
                   <PlusIcon size={14} />
                   <span>New Space</span>

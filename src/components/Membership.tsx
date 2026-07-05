@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useEntitlement, type Entitlement } from '../hooks/useEntitlement';
+import { FREE_SPACE_LIMIT } from '../lib/limits';
 
 const MCP_BASE = ((import.meta.env.VITE_FLOWYA_MCP_URL as string) || 'https://flowya-mcp.vercel.app').replace(/\/+$/, '');
 
@@ -84,13 +85,14 @@ const PLANS: { id: 'monthly' | 'annual'; label: string; price: string; note?: st
   { id: 'annual', label: 'Annual', price: '$39.99', note: 'per year · save 33%' },
 ];
 
-const COMPARE: { feat: string; free: boolean; pro: boolean }[] = [
-  { feat: 'Mac app — notch, spaces, kanban, hotkey', free: true, pro: true },
-  { feat: 'Unlimited tasks & spaces', free: true, pro: true },
-  { feat: 'Real-time sync across your devices', free: true, pro: true },
-  { feat: 'Flowya on iPhone & mobile', free: false, pro: true },
-  { feat: 'Connect your AI — Claude, Cursor, ChatGPT (MCP)', free: false, pro: true },
-  { feat: 'Priority support', free: false, pro: true },
+const COMPARE: { feat: string; free: string; pro: string }[] = [
+  { feat: 'Mac app — notch, kanban, hotkey', free: '✓', pro: '✓' },
+  { feat: 'Spaces to separate your fronts', free: String(FREE_SPACE_LIMIT), pro: 'Unlimited' },
+  { feat: 'Unlimited tasks', free: '✓', pro: '✓' },
+  { feat: 'Real-time sync across your devices', free: '✓', pro: '✓' },
+  { feat: 'Flowya on iPhone & mobile', free: '—', pro: '✓' },
+  { feat: 'Connect your AI — Claude, Cursor, ChatGPT (MCP)', free: '—', pro: '✓' },
+  { feat: 'Priority support', free: '—', pro: '✓' },
 ];
 
 async function jwtHeader(): Promise<Record<string, string>> {
@@ -172,7 +174,7 @@ export function MembershipModal({ isOpen, onClose, userId }: MembershipModalProp
               {/* Free vs Pro comparison for non-Pro */}
               {!isPro && (
                 <div style={{ marginTop: 16, border: '1px solid rgba(127,127,127,0.18)', borderRadius: 10, overflow: 'hidden' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px 52px', alignItems: 'center', padding: '9px 14px', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', opacity: 0.5 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 56px 84px', alignItems: 'center', padding: '9px 14px', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', opacity: 0.5 }}>
                     <div>What you get</div>
                     <div style={{ textAlign: 'center' }}>Free</div>
                     <div style={{ textAlign: 'center', color: '#9B6DFF', fontWeight: 700 }}>Pro</div>
@@ -180,11 +182,11 @@ export function MembershipModal({ isOpen, onClose, userId }: MembershipModalProp
                   {COMPARE.map((r, i) => (
                     <div
                       key={r.feat}
-                      style={{ display: 'grid', gridTemplateColumns: '1fr 52px 52px', alignItems: 'center', padding: '9px 14px', fontSize: 12.5, borderTop: i === 0 ? '1px solid rgba(127,127,127,0.14)' : '1px solid rgba(127,127,127,0.1)' }}
+                      style={{ display: 'grid', gridTemplateColumns: '1fr 56px 84px', alignItems: 'center', padding: '9px 14px', fontSize: 12.5, borderTop: i === 0 ? '1px solid rgba(127,127,127,0.14)' : '1px solid rgba(127,127,127,0.1)' }}
                     >
                       <div style={{ opacity: 0.85 }}>{r.feat}</div>
-                      <div style={{ textAlign: 'center', color: r.free ? '#30D158' : 'rgba(255,255,255,0.3)', fontWeight: 700 }}>{r.free ? '✓' : '—'}</div>
-                      <div style={{ textAlign: 'center', color: r.pro ? '#30D158' : 'rgba(255,255,255,0.3)', fontWeight: 700 }}>{r.pro ? '✓' : '—'}</div>
+                      <div style={{ textAlign: 'center', color: r.free === '—' ? 'rgba(255,255,255,0.3)' : r.free === '✓' ? '#30D158' : 'rgba(255,255,255,0.85)', fontWeight: 700, fontSize: r.free.length > 1 ? 11.5 : 12.5 }}>{r.free}</div>
+                      <div style={{ textAlign: 'center', color: r.pro === '✓' ? '#30D158' : '#9B6DFF', fontWeight: 700, fontSize: r.pro.length > 1 ? 11.5 : 12.5 }}>{r.pro}</div>
                     </div>
                   ))}
                 </div>

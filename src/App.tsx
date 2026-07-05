@@ -23,6 +23,8 @@ import { AIDuplicatesModal } from './components/AIDuplicatesModal';
 import { RecurringTasksModal } from './components/RecurringTasksModal';
 import { ConnectAIModal } from './components/ConnectAI';
 import { MembershipModal } from './components/Membership';
+import { SpaceUpsellModal } from './components/SpaceUpsellModal';
+import { useEntitlement } from './hooks/useEntitlement';
 import { useRecurringTasks } from './hooks/useRecurringTasks';
 import { useAgent } from './hooks/useAgent';
 import { AgentOverlay, AgentConfirmDialog } from './components/AgentOverlay';
@@ -34,6 +36,9 @@ import * as analytics from './lib/analytics';
 
 export default function App() {
   const { user, loading: authLoading, signInWithEmail, signUpWithEmail, signOut } = useAuth();
+  // App-wide Pro status. Kept live via Realtime so a purchase unlocks features
+  // (e.g. unlimited spaces) even while no billing modal is open.
+  const { isPro, loading: entitlementLoading } = useEntitlement(user?.id);
   const { spaces, loading: spacesLoading, createSpace, updateSpace, deleteSpace, reorderSpaces } = useSpaces(user?.id);
   const { settings, loading: settingsLoading, updateSettings } = useSettings(user?.id);
   const { count: streakCount, bestToday: streakBestToday, isActive: streakActive, showFlame, recordCompletion: recordStreakCompletion, getYesterdayBestStreak } = useStreak(user?.id);
@@ -85,6 +90,7 @@ export default function App() {
   const [showRecurringTasks, setShowRecurringTasks] = useState(false);
   const [showConnectAI, setShowConnectAI] = useState(false);
   const [showMembership, setShowMembership] = useState(false);
+  const [showSpaceUpsell, setShowSpaceUpsell] = useState(false);
 
   // Duplicates state
   const [showDuplicates, setShowDuplicates] = useState(false);
@@ -1039,6 +1045,8 @@ export default function App() {
         onOpenRecurringTasks={() => setShowRecurringTasks(true)}
         onOpenConnectAI={() => setShowConnectAI(true)}
         onOpenMembership={() => setShowMembership(true)}
+        isPro={isPro || entitlementLoading}
+        onUpsellSpaces={() => setShowSpaceUpsell(true)}
       />
 
       <div className="main-content">
@@ -1209,6 +1217,16 @@ export default function App() {
         isOpen={showMembership}
         onClose={() => setShowMembership(false)}
         userId={user?.id}
+      />
+
+      {/* Contextual upsell shown when a free user hits the space limit */}
+      <SpaceUpsellModal
+        isOpen={showSpaceUpsell}
+        onClose={() => setShowSpaceUpsell(false)}
+        onUpgrade={() => {
+          setShowSpaceUpsell(false);
+          setShowMembership(true);
+        }}
       />
 
       {/* Daily Summary Modal (morning greeting) */}
