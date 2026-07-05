@@ -43,6 +43,7 @@ function ArchiveIcon() {
 
 interface TodoListProps {
   todos: Todo[];
+  highlightTodoId?: string | null;
   loading: boolean;
   onStatusChange: (id: string, status: TaskStatus) => void;
   onUpdate: (id: string, updates: { text?: string; description?: string | null; priority?: Priority }) => Promise<void> | void;
@@ -65,6 +66,7 @@ interface P0ConfirmModal {
 
 export function TodoList({
   todos,
+  highlightTodoId,
   loading,
   onStatusChange,
   onUpdate,
@@ -83,6 +85,15 @@ export function TodoList({
   const [p0Modal, setP0Modal] = useState<P0ConfirmModal | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const scrollIntervalRef = useRef<number | null>(null);
+
+  // Scroll the highlighted task into view when it changes (e.g. panel expands)
+  useEffect(() => {
+    if (!highlightTodoId || !listRef.current) return;
+    const el = listRef.current.querySelector<HTMLElement>(
+      `[data-todo-id="${highlightTodoId}"]`
+    );
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [highlightTodoId]);
 
   // Auto-scroll during drag
   const handleAutoScroll = useCallback((e: React.DragEvent) => {
@@ -263,7 +274,8 @@ export function TodoList({
           {todos.map((todo) => (
             <div
               key={todo.id}
-              className={`todo-drop-zone ${dragOverId === todo.id ? 'drag-over' : ''}`}
+              data-todo-id={todo.id}
+              className={`todo-drop-zone ${dragOverId === todo.id ? 'drag-over' : ''} ${highlightTodoId === todo.id ? 'todo-highlighted' : ''}`}
               onDragOver={(e) => handleDragOver(e, todo.id)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, todo.id)}

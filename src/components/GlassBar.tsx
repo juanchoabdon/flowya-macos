@@ -20,12 +20,7 @@ interface GlassBarProps {
   userEmail?: string;
   windowFocused?: boolean;
   onOpenWhatsNew?: () => void;
-  onAIPrioritize?: () => void;
-  onEditAIProfile?: () => void;
-  aiProfileSetup?: boolean;
-  onEnterPip?: () => void;
   onOpenRecurringTasks?: () => void;
-  onOpenConnectAI?: () => void;
   streakCount?: number;
   streakActive?: boolean;
   showFlame?: boolean;
@@ -46,15 +41,10 @@ export function GlassBar({
   userEmail,
   windowFocused = true,
   onOpenWhatsNew,
-  onAIPrioritize,
-  onEditAIProfile,
-  aiProfileSetup = false,
   streakCount = 0,
   streakActive = false,
   showFlame = false,
-  onEnterPip,
   onOpenRecurringTasks,
-  onOpenConnectAI,
 }: GlassBarProps) {
   const isAllSelected = selectedSpaceId === ALL_SPACES_ID;
   const [hasUnseenUpdates, markUpdatesSeen] = useHasUnseenUpdates();
@@ -82,7 +72,7 @@ export function GlassBar({
       return unsubscribe;
     }
   }, []);
-  
+
   // Get header color from selected space or "All" color from settings
   const allSpacesColor = settings?.all_spaces_color || '#64B5F6';
   const headerColor = isAllSelected ? allSpacesColor : (selectedSpace?.color || '#C7CEEA');
@@ -387,15 +377,6 @@ export function GlassBar({
       </div>
       
       <div className="title-bar-right">
-        {/* AI Prioritize button */}
-        <button
-          className="icon-btn ai-btn"
-          onClick={() => onAIPrioritize?.()}
-        >
-          <AISparkleIcon />
-          <span className="ai-tooltip">AI Boost</span>
-        </button>
-
         <div className="dropdown" ref={accountMenuRef}>
           <button 
             className={`icon-btn account-btn ${updateAvailable ? 'has-update' : ''} ${hasUnseenUpdates ? 'has-badge' : ''}`}
@@ -420,17 +401,6 @@ export function GlassBar({
               </div>
               
               <div className="dropdown-divider" />
-              
-              <div
-                className="dropdown-item"
-                onClick={() => {
-                  window.windowApi?.resetWindowToDefault();
-                  setAccountMenuOpen(false);
-                }}
-              >
-                <ResizeIcon size={14} />
-                <span>Reset Size</span>
-              </div>
 
               <div
                 className="dropdown-item"
@@ -443,31 +413,16 @@ export function GlassBar({
                 <span>Daily Tasks</span>
               </div>
 
-              {onOpenConnectAI && (
-                <div
-                  className="dropdown-item"
-                  onClick={() => {
-                    onOpenConnectAI();
-                    setAccountMenuOpen(false);
-                  }}
-                >
-                  <AIProfileIcon size={14} />
-                  <span>Connect with AI</span>
-                </div>
-              )}
-
-              {aiProfileSetup && onEditAIProfile && (
-                <div
-                  className="dropdown-item"
-                  onClick={() => {
-                    onEditAIProfile();
-                    setAccountMenuOpen(false);
-                  }}
-                >
-                  <AIProfileIcon size={14} />
-                  <span>Edit AI Profile</span>
-                </div>
-              )}
+              <div
+                className="dropdown-item"
+                onClick={() => {
+                  window.windowApi?.moveToNextDisplay();
+                  setAccountMenuOpen(false);
+                }}
+              >
+                <DisplayIcon />
+                <span>Move to Next Screen</span>
+              </div>
 
               <div
                 className={`dropdown-item ${hasUnseenUpdates ? 'has-new-badge' : ''}`}
@@ -527,15 +482,6 @@ export function GlassBar({
             </div>
           )}
         </div>
-
-        {/* PIP / Corner mode button */}
-        <button
-          className="icon-btn pip-btn"
-          onClick={() => onEnterPip?.()}
-          title="Minimize to corner"
-        >
-          <PipIcon />
-        </button>
       </div>
     </div>
   );
@@ -644,50 +590,12 @@ function QuitIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-function AIProfileIcon({ size = 14 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
-      <path
-        d="M7 1L8.2 4.8L12 6L8.2 7.2L7 11L5.8 7.2L2 6L5.8 4.8L7 1Z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="11" cy="2.5" r="1" stroke="currentColor" strokeWidth="0.8" />
-    </svg>
-  );
-}
-
-function ResizeIcon({ size = 14 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
-      <path
-        d="M2 5V2H5M9 2H12V5M12 9V12H9M5 12H2V9"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function InfoIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3"/>
       <path d="M8 7V11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
       <circle cx="8" cy="5" r="0.75" fill="currentColor"/>
-    </svg>
-  );
-}
-
-function PipIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <rect x="1" y="1" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-      <rect x="7.5" y="5.5" width="5" height="4" rx="1" fill="currentColor" opacity="0.7"/>
     </svg>
   );
 }
@@ -713,25 +621,25 @@ function RecurringIcon() {
   );
 }
 
-function AISparkleIcon() {
+function DisplayIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="ai-wave-svg">
-      <defs>
-        <linearGradient id="aiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#8C66FF">
-            <animate attributeName="stop-color" values="#8C66FF;#4DB8FF;#66E6E6;#8C66FF" dur="3s" repeatCount="indefinite"/>
-          </stop>
-          <stop offset="50%" stopColor="#4DB8FF">
-            <animate attributeName="stop-color" values="#4DB8FF;#66E6E6;#8C66FF;#4DB8FF" dur="3s" repeatCount="indefinite"/>
-          </stop>
-          <stop offset="100%" stopColor="#66E6E6">
-            <animate attributeName="stop-color" values="#66E6E6;#8C66FF;#4DB8FF;#66E6E6" dur="3s" repeatCount="indefinite"/>
-          </stop>
-        </linearGradient>
-      </defs>
-      <path d="M2 8c2-2 4-2 6 0s4 2 6 0 4-2 6 0" stroke="url(#aiGrad)" strokeWidth="2" strokeLinecap="round" fill="none"/>
-      <path d="M2 13c2-2 4-2 6 0s4 2 6 0 4-2 6 0" stroke="url(#aiGrad)" strokeWidth="2" strokeLinecap="round" fill="none"/>
-      <path d="M2 18c2-2 4-2 6 0s4 2 6 0 4-2 6 0" stroke="url(#aiGrad)" strokeWidth="2" strokeLinecap="round" fill="none"/>
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <rect
+        x="1.5"
+        y="2"
+        width="11"
+        height="8"
+        rx="1.2"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      <path
+        d="M5 12.5H9"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
+

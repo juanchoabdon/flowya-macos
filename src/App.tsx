@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSpaces } from './hooks/useSpaces';
 import { useTodos } from './hooks/useTodos';
 import { useSettings } from './hooks/useSettings';
@@ -13,6 +13,7 @@ import { Login } from './components/Login';
 import { WhatsNewModal } from './components/WhatsNewModal';
 import { DailySummary, shouldShowDailySummary } from './components/DailySummary';
 import { AIOnboarding } from './components/AIOnboarding';
+import { OnboardingModal } from './components/OnboardingModal';
 import { AIRecommendation } from './components/AIRecommendation';
 import { AIHubModal } from './components/AIHubModal';
 import { AIRenameModal } from './components/AIRenameModal';
@@ -54,7 +55,13 @@ export default function App() {
   const [streakParticles, setStreakParticles] = useState<{id: number; x: number; y: number; emoji: string}[]>([]);
   const [priorityFilter, setPriorityFilter] = useState<Priority | null>(null);
   const [focusDescription, setFocusDescription] = useState(false);
-  const [pipMode, setPipMode] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [highlightTodoId, setHighlightTodoId] = useState<string | null>(null);
+  // Window mode: 'welcome' = centered login/onboarding window, 'docked' = notch pill.
+  const [docking, setDocking] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
+    try { return localStorage.getItem('flowya_onboarding_done') === '1'; } catch { return false; }
+  });
 
   // AI Prioritization state
   const [showAIOnboarding, setShowAIOnboarding] = useState(false);
@@ -134,17 +141,9 @@ export default function App() {
     return Date.now() - createdAt < 24 * 60 * 60 * 1000;
   }, [user?.created_at]);
 
-  // Auto-show AI onboarding if user hasn't completed setup (skip for brand-new accounts)
-  const hasShownAIOnboarding = useRef(false);
-  useEffect(() => {
-    if (isNewAccount()) return;
-    if (!settingsLoading && settings && !settings.ai_setup_complete && !hasShownAIOnboarding.current && spaces.length > 0) {
-      hasShownAIOnboarding.current = true;
-      setAIEditMode(false);
-      exitPipIfNeeded();
-      setShowAIOnboarding(true);
-    }
-  }, [settingsLoading, settings, spaces.length, isNewAccount]); // eslint-disable-line react-hooks/exhaustive-deps
+  // First-run onboarding now runs in the dedicated welcome window (see appMode /
+  // OnboardingModal below). The legacy in-app AI onboarding overlay is kept only for
+  // the manual "edit AI profile" flow and no longer auto-opens on launch.
 
   // Initialize analytics once
   useEffect(() => {
@@ -171,7 +170,6 @@ export default function App() {
           // AI Onboarding takes priority -- its own useEffect handles showing it
         } else if (shouldShowDailySummary()) {
           setTimeout(() => {
-            exitPipIfNeeded();
             analytics.trackViewDailySummary('morning');
             setShowDailySummary(true);
           }, 500);
@@ -243,7 +241,6 @@ export default function App() {
         if (focused && aiIsSetup && !isNewAccount()) {
           if (shouldShowDailySummary()) {
             setTimeout(() => {
-              exitPipIfNeeded();
               analytics.trackViewDailySummary('morning');
               setShowDailySummary(true);
             }, 500);
@@ -254,46 +251,121 @@ export default function App() {
     }
   }, [aiIsSetup]);
 
-  // Listen for PIP mode changes
+  // The single task surfaced in the collapsed pill: highest-priority in-progress,
+  // falling back to highest-priority backlog. Mirrors the pill render logic.
+  const pillTopTask = useMemo(() => {
+    const byPriority = (a: Todo, b: Todo) => {
+      const po = { p0: 0, p1: 1, p2: 2, p3: 3 };
+      const pa = po[a.priority as keyof typeof po] ?? 9;
+      const pb = po[b.priority as keyof typeof po] ?? 9;
+      if (pa !== pb) return pa - pb;
+      return a.position - b.position;
+    };
+    const active = todos.filter(t => !t.archived && t.status !== 'done');
+    const inProgress = active.filter(t => t.status === 'in_progress').sort(byPriority);
+    const backlog = active.filter(t => t.status === 'backlog').sort(byPriority);
+    return inProgress[0] || backlog[0] || null;
+  }, [todos]);
+
+  // Listen for expand state changes from Electron
   useEffect(() => {
-    if (window.windowApi?.onPipChanged) {
-      return window.windowApi.onPipChanged((pip) => setPipMode(pip));
+    if (window.windowApi?.onExpandStateChanged) {
+      return window.windowApi.onExpandStateChanged((exp) => setExpanded(exp));
     }
   }, []);
 
-  const pipModeRef = useRef(pipMode);
-  pipModeRef.current = pipMode;
-  const exitPipIfNeeded = useCallback(() => {
-    if (pipModeRef.current) {
-      window.windowApi?.exitPip();
+  // When the panel expands, surface the pill's task in the list: if it's in
+  // progress switch to that filter, then highlight/scroll to it briefly.
+  useEffect(() => {
+    if (!expanded || !pillTopTask) {
+      setHighlightTodoId(null);
+      return;
     }
+    if (pillTopTask.status === 'in_progress') {
+      setFilter('in_progress');
+    }
+    setHighlightTodoId(pillTopTask.id);
+    const timer = setTimeout(() => setHighlightTodoId(null), 2600);
+    return () => clearTimeout(timer);
+  }, [expanded]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && expanded) {
+        window.windowApi?.collapse();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [expanded]);
+
+  // ---- Window mode (welcome vs docked) ----
+  // A brand-new user should meet Flowya in a proper centered window (login +
+  // onboarding), not squeezed into the notch pill. Once they're set up, the
+  // window "docks" into the notch.
+  //
+  // The onboarding is latched: `ai_setup_complete` flips true mid-flow (at the
+  // roles/context step, before the first-task step), so we must keep the modal
+  // open until the user explicitly finishes/skips rather than reacting to aiIsSetup.
+  const [onboardingActive, setOnboardingActive] = useState(false);
+  useEffect(() => {
+    if (!!user && !settingsLoading && !!settings && !aiIsSetup && !onboardingDismissed) {
+      setOnboardingActive(true);
+    }
+  }, [user, settingsLoading, settings, aiIsSetup, onboardingDismissed]);
+
+  const needsOnboarding = onboardingActive && !onboardingDismissed;
+  const appMode: 'welcome' | 'docked' =
+    !authLoading && (!user || needsOnboarding) ? 'welcome' : 'docked';
+
+  const prevAppModeRef = useRef<'welcome' | 'docked'>('docked');
+  const cameFromOnboardingRef = useRef(false);
+
+  // Remember if we ever entered onboarding, so the first dock can reveal the panel.
+  useEffect(() => {
+    if (needsOnboarding) cameFromOnboardingRef.current = true;
+  }, [needsOnboarding]);
+
+  // Drive the native window: grow into welcome, or shrink/dock into the notch.
+  useEffect(() => {
+    if (authLoading) return;
+    const prev = prevAppModeRef.current;
+    if (appMode === 'welcome') {
+      // The panel can never be "expanded" in welcome mode; clear any stale state
+      // (e.g. the user signed out from the expanded panel).
+      setExpanded(false);
+    }
+    if (prev === 'welcome' && appMode === 'docked') {
+      // Keep a full dark panel until the shrink finishes to avoid an empty flash.
+      setDocking(true);
+    }
+    prevAppModeRef.current = appMode;
+    window.windowApi?.setWindowMode?.(appMode);
+  }, [appMode, authLoading]);
+
+  // Clear the docking filler once the native shrink completes, and reveal the
+  // panel once the very first time a freshly-onboarded user lands in the notch.
+  useEffect(() => {
+    if (!window.windowApi?.onModeChanged) return;
+    return window.windowApi.onModeChanged((mode) => {
+      if (mode !== 'docked') return;
+      setDocking(false);
+      setExpanded(false); // always land as the collapsed pill after docking
+      let seenPill = false;
+      try { seenPill = localStorage.getItem('flowya_seen_pill') === '1'; } catch { /* ignore */ }
+      if (cameFromOnboardingRef.current && !seenPill) {
+        try { localStorage.setItem('flowya_seen_pill', '1'); } catch { /* ignore */ }
+        setTimeout(() => window.windowApi?.expand?.(), 800);
+      }
+      cameFromOnboardingRef.current = false;
+    });
   }, []);
 
-  const pipDragRef = useRef<{ x: number; y: number } | null>(null);
-  const pipDidDrag = useRef(false);
-  const handlePipMouseDown = useCallback((e: React.MouseEvent) => {
-    pipDragRef.current = { x: e.screenX, y: e.screenY };
-    pipDidDrag.current = false;
-    window.windowApi?.pipStartDrag(e.screenX, e.screenY);
-    const onMove = (ev: MouseEvent) => {
-      if (!pipDragRef.current) return;
-      const dx = ev.screenX - pipDragRef.current.x;
-      const dy = ev.screenY - pipDragRef.current.y;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-        pipDidDrag.current = true;
-        window.windowApi?.pipDragMove(ev.screenX, ev.screenY);
-      }
-    };
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      if (!pipDidDrag.current) {
-        window.windowApi?.exitPip();
-      }
-      pipDragRef.current = null;
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+  const handleFinishOnboarding = useCallback(() => {
+    try { localStorage.setItem('flowya_onboarding_done', '1'); } catch { /* ignore */ }
+    setShowAIOnboarding(false);
+    setOnboardingActive(false);
+    setOnboardingDismissed(true);
   }, []);
 
   // Auto-switch filter only when space actually changes (not on refetch)
@@ -458,24 +530,9 @@ export default function App() {
     setTimeout(() => setSuccessToast(null), 2500);
   };
 
-  // AI Hub handlers
-  const handleAIButtonClick = () => {
-    if (!aiIsSetup) {
-      setAIEditMode(false);
-      setShowAIOnboarding(true);
-      return;
-    }
-    setShowAIHub(true);
-  };
-
   const handleAIHubPrioritize = () => {
     setShowAIHub(false);
     handleAIAnalyze();
-  };
-
-  const handleEditAIProfile = () => {
-    setAIEditMode(true);
-    setShowAIOnboarding(true);
   };
 
   const handleAIHubRename = () => {
@@ -499,7 +556,6 @@ export default function App() {
       // After first-time onboarding, chain into daily summary / weekly planning
       setTimeout(() => {
         if (shouldShowDailySummary()) {
-          exitPipIfNeeded();
           analytics.trackViewDailySummary('morning');
           setShowDailySummary(true);
         }
@@ -881,7 +937,7 @@ export default function App() {
     );
   }
 
-  // Show login if not authenticated
+  // Show login if not authenticated (rendered in the centered welcome window)
   if (!user) {
     return (
       <Login
@@ -901,34 +957,62 @@ export default function App() {
     );
   }
 
-  if (pipMode) {
-    const inProgressCount = todos.filter(t => t.status === 'in_progress' && !t.archived).length;
-    const spaceColor = selectedSpace?.color || settings?.all_spaces_color || '#64B5F6';
+  // First-run onboarding, shown in the centered welcome window (no hover-collapse)
+  if (needsOnboarding) {
+    return (
+      <OnboardingModal
+        isOpen
+        spaces={spaces}
+        onCreateSpace={createSpace}
+        onDeleteSpace={deleteSpace}
+        onSaveAIProfile={saveAIProfile}
+        onCreateTodo={createTodo}
+        onClose={handleFinishOnboarding}
+      />
+    );
+  }
+
+  // While the window shrinks from welcome down into the notch, show a full dark
+  // panel so no empty/white frame is visible during the resize.
+  if (docking) {
+    return <div className="docking-screen" />;
+  }
+
+  if (!expanded) {
+    const topTask = pillTopTask;
+    const hasAnyTask = todos.some(t => !t.archived);
+    const spaceColor = selectedSpace?.color || settings?.all_spaces_color || '#6C63FF';
+    const taskSpaceColor = topTask ? (spaces.find(s => s.id === topTask.space_id)?.color || spaceColor) : '#4ECDC4';
     return (
       <div
-        className={`app-container pip-container ${!windowFocused ? 'unfocused' : ''}`}
-        style={{ background: `linear-gradient(135deg, ${spaceColor}D0 0%, ${spaceColor}90 50%, ${spaceColor}B8 100%)` }}
-        onMouseDown={handlePipMouseDown}
+        className="pill-container"
       >
-        <div className="pip-bar">
-          <span className="pip-bar-title">{settings?.nickname || 'Flowya'}</span>
-          <span className="pip-bar-dot" style={{ background: spaceColor }} />
-          <span className="pip-bar-count">{inProgressCount} active</span>
-          {streakActive && (
-            <span className="pip-bar-streak">🔥 {streakCount}</span>
-          )}
-          <button className="pip-bar-expand" title="Expand">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M8.5 2H12V5.5M5.5 12H2V8.5M12 2L8 6M2 12L6 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-        </div>
+        <span className="pill-status-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M2 12C2 12 5 8 8 8C11 8 13 12 16 12C19 12 22 8 22 8" stroke={taskSpaceColor} strokeWidth="2.2" strokeLinecap="round"/>
+            <path d="M2 17C2 17 5 13 8 13C11 13 13 17 16 17C19 17 22 13 22 13" stroke={taskSpaceColor} strokeWidth="2.2" strokeLinecap="round"/>
+          </svg>
+        </span>
+        <span className="pill-task-name">
+          {topTask ? topTask.text : (hasAnyTask ? 'All clear!' : 'Add your first task')}
+        </span>
+        {topTask ? (
+          <span className={`pill-priority pill-priority-${topTask.priority}`}>
+            {topTask.priority.toUpperCase()}
+          </span>
+        ) : hasAnyTask ? (
+          <span className="pill-check">✓</span>
+        ) : (
+          <span className="pill-plus">+</span>
+        )}
       </div>
     );
   }
 
   return (
-    <div className={`app-container ${!windowFocused ? 'unfocused' : ''}`}>
+    <div
+      className={`app-container expanded-container ${!windowFocused ? 'unfocused' : ''}`}
+    >
       <GlassBar
         spaces={spaces}
         selectedSpace={selectedSpace || null}
@@ -947,15 +1031,10 @@ export default function App() {
         userEmail={user?.email}
         windowFocused={windowFocused}
         onOpenWhatsNew={() => setShowWhatsNew(true)}
-        onAIPrioritize={handleAIButtonClick}
-        onEditAIProfile={handleEditAIProfile}
-        aiProfileSetup={aiIsSetup}
         streakCount={streakCount}
         streakActive={streakActive}
         showFlame={showFlame}
-        onEnterPip={() => window.windowApi?.enterPip()}
         onOpenRecurringTasks={() => setShowRecurringTasks(true)}
-        onOpenConnectAI={() => setShowConnectAI(true)}
       />
 
       <div className="main-content">
@@ -1038,6 +1117,7 @@ export default function App() {
 
             <TodoList
               todos={filteredTodos}
+              highlightTodoId={highlightTodoId}
               loading={todosLoading}
               onStatusChange={handleStatusChange}
               onUpdate={async (id, updates) => {

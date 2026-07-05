@@ -19,7 +19,6 @@ app.commandLine.appendSwitch('disable-features', 'TouchpadOverscrollHistoryNavig
 app.commandLine.appendSwitch('overscroll-history-navigation', '0');
 
 // Import liquid glass for native macOS glass effect
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 let liquidGlass: {
   addView: (handle: Buffer, options?: { cornerRadius?: number; tintColor?: string; opaque?: boolean }) => number;
   unstable_setVariant?: (viewId: number, variant: number) => void;
@@ -33,50 +32,26 @@ try {
   console.warn('electron-liquid-glass not available:', e);
 }
 
-// Window state persistence
-interface WindowState {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-function getWindowStateFile(): string {
-  return path.join(app.getPath('userData'), 'window-state.json');
-}
-
-function loadWindowState(): WindowState | null {
-  try {
-    const stateFile = getWindowStateFile();
-    if (fs.existsSync(stateFile)) {
-      const data = fs.readFileSync(stateFile, 'utf-8');
-      return JSON.parse(data);
-    }
-  } catch (e) {
-    console.error('Failed to load window state:', e);
-  }
-  return null;
-}
-
-function saveWindowState(state: WindowState): void {
-  try {
-    fs.writeFileSync(getWindowStateFile(), JSON.stringify(state));
-  } catch (e) {
-    console.error('Failed to save window state:', e);
-  }
-}
-
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
 let glassViewId: number | null = null;
-let pipSavedBounds: WindowState | null = null;
+let isExpanded = false;
 
 // Agent state
 let activeAgent: AgentLoop | null = null;
 
-// Store original window bounds for restore
-let savedBounds: { x: number; y: number; width: number; height: number } | null = null;
-const NUDGE_SIZE = 70;
+// Notch/pill dimensions
+const PILL_WIDTH = 280;
+const PILL_HEIGHT = 38;
+const EXPANDED_WIDTH = 380;
+const EXPANDED_HEIGHT = 600;
+
+// Welcome window (login / onboarding) — a centered modal, not anchored to the notch
+const WELCOME_WIDTH = 460;
+const WELCOME_HEIGHT = 640;
+
+// 'docked' = notch pill with hover-to-expand; 'welcome' = centered onboarding window
+let windowMode: 'welcome' | 'docked' = 'docked';
 
 // Ensure single instance
 const gotTheLock = app.requestSingleInstanceLock();
@@ -93,56 +68,87 @@ if (!gotTheLock) {
   });
 }
 
-function createWindow(): void {
-  const savedState = loadWindowState();
-  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+function getNotchInfo(): { hasNotch: boolean; menuBarHeight: number } {
+  const display = screen.getPrimaryDisplay();
+  const { height: totalHeight } = display.size;
+  const { height: workAreaHeight } = display.workAreaSize;
+  const menuBarHeight = totalHeight - workAreaHeight;
+  const scaleFactor = display.scaleFactor;
+  const physicalWidth = display.size.width * scaleFactor;
+  const hasNotch = physicalWidth >= 3024;
+  return { hasNotch, menuBarHeight };
+}
 
-  // Default position: top-right corner with some padding
-  const defaultWidth = 350;
-  const defaultHeight = 340;
-  const defaultX = screenWidth - defaultWidth - 20;
-  const defaultY = 60;
+function getCurrentDisplay() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const b = mainWindow.getBounds();
+    return screen.getDisplayNearestPoint({
+      x: b.x + Math.round(b.width / 2),
+      y: b.y + Math.round(b.height / 2),
+    });
+  }
+  return screen.getPrimaryDisplay();
+}
+
+function getPillPosition(): { x: number; y: number } {
+  const display = getCurrentDisplay();
+  const x = display.bounds.x + Math.round((display.workAreaSize.width - PILL_WIDTH) / 2);
+  const y = display.bounds.y;
+  return { x, y };
+}
+
+function getExpandedPosition(): { x: number; y: number } {
+  const display = getCurrentDisplay();
+  const x = display.bounds.x + Math.round((display.workAreaSize.width - EXPANDED_WIDTH) / 2);
+  const y = display.bounds.y;
+  return { x, y };
+}
+
+function getWelcomePosition(): { x: number; y: number } {
+  const display = getCurrentDisplay();
+  const x = display.bounds.x + Math.round((display.workAreaSize.width - WELCOME_WIDTH) / 2);
+  const y = display.bounds.y + Math.round((display.workAreaSize.height - WELCOME_HEIGHT) / 2);
+  return { x, y };
+}
+
+function createWindow(): void {
+  const pillPos = getPillPosition();
 
   mainWindow = new BrowserWindow({
-    width: savedState?.width ?? defaultWidth,
-    height: savedState?.height ?? defaultHeight,
-    x: savedState?.x ?? defaultX,
-    y: savedState?.y ?? defaultY,
-    minWidth: 280,
-    minHeight: 400,
-    maxWidth: 500,
-    maxHeight: 800,
+    width: PILL_WIDTH,
+    height: PILL_HEIGHT,
+    x: pillPos.x,
+    y: pillPos.y,
+    minWidth: 140,
+    minHeight: 38,
+    maxWidth: WELCOME_WIDTH,
+    maxHeight: WELCOME_HEIGHT,
     
-    // macOS-specific window styling for Liquid Glass
     titleBarStyle: 'hidden',
-    trafficLightPosition: { x: -100, y: -100 }, // Hide traffic lights
+    trafficLightPosition: { x: -100, y: -100 },
     transparent: true,
     backgroundColor: '#00000000',
     
-    // Floating window behavior
     alwaysOnTop: true,
     
-    // Frame and shadow
     frame: false,
     hasShadow: true,
     roundedCorners: true,
     
-    // macOS click behavior - accept clicks without stealing focus from Split View
     acceptFirstMouse: true,
+    resizable: false,
+    movable: false,
     
-    // Security
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false, // Required for preload script
+      sandbox: false,
     },
   });
 
-  // Show window buttons (required for liquid glass)
-  mainWindow.setWindowButtonVisibility(true);
+  mainWindow.setWindowButtonVisibility(false);
 
-  // Set Content Security Policy to allow Amplitude and fonts
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
@@ -160,30 +166,22 @@ function createWindow(): void {
     });
   });
 
-  // Configure as floating utility window
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   mainWindow.setAlwaysOnTop(true, 'floating', 1);
 
-  // Load the app
   if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
     mainWindow.loadURL('http://localhost:5173');
-    // Uncomment to open DevTools in development
-    // mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    // In packaged app, __dirname is dist-electron/electron/, so we need ../../dist
     mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
   }
 
-  // Prevent navigation to external URLs - open in system browser instead
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    // Allow navigation to localhost (dev server) and file:// (production)
     if (!url.startsWith('http://localhost') && !url.startsWith('file://')) {
       event.preventDefault();
       shell.openExternal(url);
     }
   });
 
-  // Prevent new windows from opening - open in system browser instead
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://') || url.startsWith('https://')) {
       shell.openExternal(url);
@@ -191,13 +189,13 @@ function createWindow(): void {
     return { action: 'deny' };
   });
 
-  // Apply native Liquid Glass effect after content loads
   mainWindow.webContents.once('did-finish-load', () => {
     if (mainWindow && liquidGlass && liquidGlass.addView) {
       try {
         glassViewId = liquidGlass.addView(mainWindow.getNativeWindowHandle(), {
-          cornerRadius: 18,
-          tintColor: '#00000060',
+          cornerRadius: 19,
+          tintColor: '#000000E0',
+          opaque: true,
         });
         if (glassViewId !== null && liquidGlass.unstable_setVariant) {
           liquidGlass.unstable_setVariant(glassViewId, 2);
@@ -209,43 +207,15 @@ function createWindow(): void {
     }
   });
 
-  // Save window state on move/resize
-  mainWindow.on('moved', () => {
-    if (mainWindow) {
-      const bounds = mainWindow.getBounds();
-      saveWindowState(bounds);
-    }
-  });
-
-  mainWindow.on('resized', () => {
-    if (mainWindow) {
-      const bounds = mainWindow.getBounds();
-      saveWindowState(bounds);
-    }
-  });
-
-  // Handle close behavior - for now, just quit normally to keep dock icon visible
-  // mainWindow.on('close', (event) => {
-  //   if (!isQuitting) {
-  //     event.preventDefault();
-  //     mainWindow?.hide();
-  //   }
-  // });
-
   mainWindow.on('closed', () => {
     mainWindow = null;
     glassViewId = null;
   });
 
-  // Handle focus state - adjust opacity when window loses focus
   mainWindow.on('focus', () => {
     mainWindow?.webContents.send('window:focus', true);
-    mainWindow?.setOpacity(1.0);
-    
-    // Re-ensure floating level on focus to prevent space switching
     mainWindow?.setAlwaysOnTop(true, 'floating', 1);
     
-    // Check for updates when window gains focus (if packaged and no update pending)
     if (app.isPackaged && !updateDownloadedVersion) {
       autoUpdater.checkForUpdatesAndNotify().catch(() => {});
     }
@@ -253,19 +223,286 @@ function createWindow(): void {
 
   mainWindow.on('blur', () => {
     mainWindow?.webContents.send('window:focus', false);
-    mainWindow?.setOpacity(0.5);
-    
-    // Re-ensure floating level on blur  
+    if (!isExpanded) {
+      mainWindow?.setOpacity(0.85);
+    }
     mainWindow?.setAlwaysOnTop(true, 'floating', 1);
   });
 }
 
+let boundsAnimTimer: ReturnType<typeof setInterval> | null = null;
+
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+// Slow start + slow end. Feels much smoother than easeOut for shrinking, since
+// it avoids the abrupt initial jump that makes a collapse look janky.
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+// Smoothly animate the native window bounds ourselves at ~60fps. macOS's built-in
+// setBounds animation is slow and choppy, and animating in CSS shows an empty
+// full-size window. Tweening the real frame keeps the content perfectly in sync.
+function animateBounds(
+  target: { x: number; y: number; width: number; height: number },
+  duration: number,
+  easing: (t: number) => number = easeOutCubic,
+  onDone?: () => void
+): void {
+  if (!mainWindow) return;
+  if (boundsAnimTimer) {
+    clearInterval(boundsAnimTimer);
+    boundsAnimTimer = null;
+  }
+
+  const start = mainWindow.getBounds();
+  const startTime = Date.now();
+  const frameMs = 1000 / 60;
+
+  boundsAnimTimer = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      if (boundsAnimTimer) clearInterval(boundsAnimTimer);
+      boundsAnimTimer = null;
+      return;
+    }
+    const elapsed = Date.now() - startTime;
+    const t = Math.min(1, elapsed / duration);
+    const e = easing(t);
+
+    mainWindow.setBounds({
+      x: Math.round(start.x + (target.x - start.x) * e),
+      y: Math.round(start.y + (target.y - start.y) * e),
+      width: Math.round(start.width + (target.width - start.width) * e),
+      height: Math.round(start.height + (target.height - start.height) * e),
+    });
+
+    if (t >= 1) {
+      if (boundsAnimTimer) clearInterval(boundsAnimTimer);
+      boundsAnimTimer = null;
+      onDone?.();
+    }
+  }, frameMs);
+}
+
+function expandWindow(): boolean {
+  if (windowMode !== 'docked') return false;
+  if (!mainWindow || isExpanded) return false;
+  isExpanded = true;
+  const pos = getExpandedPosition();
+  mainWindow.setMinimumSize(140, 38);
+  mainWindow.setOpacity(1.0);
+  // Focus the window so macOS renders the Liquid Glass in its active (bright)
+  // state — otherwise the panel looks noticeably darker until the user clicks it.
+  mainWindow.show();
+  mainWindow.focus();
+  // Tell the renderer to swap to expanded content immediately; the growing
+  // window frame reveals it naturally from the top down.
+  mainWindow.webContents.send('window:expandStateChanged', true);
+  animateBounds(
+    { x: pos.x, y: pos.y, width: EXPANDED_WIDTH, height: EXPANDED_HEIGHT },
+    340,
+    easeInOutCubic,
+    () => { mainWindow?.setMinimumSize(EXPANDED_WIDTH, 200); }
+  );
+  return true;
+}
+
+function collapseWindow(): boolean {
+  if (windowMode !== 'docked') return false;
+  if (!mainWindow || !isExpanded) return false;
+  isExpanded = false;
+  const pos = getPillPosition();
+  mainWindow.setMinimumSize(140, 38);
+  animateBounds(
+    { x: pos.x, y: pos.y, width: PILL_WIDTH, height: PILL_HEIGHT },
+    300,
+    easeInOutCubic,
+    () => { mainWindow?.webContents.send('window:expandStateChanged', false); }
+  );
+  return true;
+}
+
+// Grow into a centered welcome window (login / onboarding). Hover tracking is off
+// here so the window never collapses while the user is filling in forms.
+function enterWelcomeMode(): boolean {
+  if (!mainWindow) return false;
+  const alreadyWelcome = windowMode === 'welcome';
+  windowMode = 'welcome';
+  stopHoverTracking();
+  isExpanded = false;
+  mainWindow.setMinimumSize(140, 38);
+  mainWindow.setOpacity(1.0);
+  const pos = getWelcomePosition();
+  if (alreadyWelcome) {
+    mainWindow.setBounds({ x: pos.x, y: pos.y, width: WELCOME_WIDTH, height: WELCOME_HEIGHT }, false);
+    mainWindow.webContents.send('window:modeChanged', 'welcome');
+    return true;
+  }
+  animateBounds(
+    { x: pos.x, y: pos.y, width: WELCOME_WIDTH, height: WELCOME_HEIGHT },
+    360,
+    easeInOutCubic,
+    () => {
+      mainWindow?.setMinimumSize(WELCOME_WIDTH, 400);
+      mainWindow?.webContents.send('window:modeChanged', 'welcome');
+    }
+  );
+  return true;
+}
+
+// Shrink from the welcome window down into the notch pill and re-enable hover.
+function enterDockedMode(): boolean {
+  if (!mainWindow) return false;
+  if (windowMode === 'docked') {
+    // Already docked (e.g. returning logged-in user on launch) — just confirm.
+    mainWindow.webContents.send('window:modeChanged', 'docked');
+    if (!hoverPollInterval) startHoverTracking();
+    return true;
+  }
+  windowMode = 'docked';
+  isExpanded = false;
+  mainWindow.setMinimumSize(140, 38);
+  const pos = getPillPosition();
+  animateBounds(
+    { x: pos.x, y: pos.y, width: PILL_WIDTH, height: PILL_HEIGHT },
+    380,
+    easeInOutCubic,
+    () => {
+      mainWindow?.webContents.send('window:modeChanged', 'docked');
+      startHoverTracking();
+    }
+  );
+  return true;
+}
+
+// Hover tracking driven from the main process. DOM mouseenter/mouseleave events are
+// unreliable on frameless, always-on-top, non-focused windows on macOS — polling the
+// real cursor position against the window bounds is far more robust.
+let hoverPollInterval: ReturnType<typeof setInterval> | null = null;
+let cursorWasInsideWindow = false;
+let hoverExpandTimer: ReturnType<typeof setTimeout> | null = null;
+let hoverCollapseTimer: ReturnType<typeof setTimeout> | null = null;
+let hoverTrackingReady = false;
+
+const HOVER_EXPAND_DELAY_MS = 300;
+const HOVER_COLLAPSE_DELAY_MS = 450;
+const HOVER_POLL_INTERVAL_MS = 80;
+
+function stopHoverTracking(): void {
+  hoverTrackingReady = false;
+  cursorWasInsideWindow = false;
+  if (hoverPollInterval) { clearInterval(hoverPollInterval); hoverPollInterval = null; }
+  if (hoverExpandTimer) { clearTimeout(hoverExpandTimer); hoverExpandTimer = null; }
+  if (hoverCollapseTimer) { clearTimeout(hoverCollapseTimer); hoverCollapseTimer = null; }
+}
+
+function startHoverTracking(): void {
+  if (windowMode !== 'docked') return;
+  // Grace period so the pill doesn't instantly expand if the cursor
+  // happens to already be near the top of the screen on launch.
+  hoverTrackingReady = false;
+  setTimeout(() => { hoverTrackingReady = true; }, 800);
+
+  if (hoverPollInterval) clearInterval(hoverPollInterval);
+  hoverPollInterval = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed() || !hoverTrackingReady) return;
+
+    const cursor = screen.getCursorScreenPoint();
+    const bounds = mainWindow.getBounds();
+    const isInside =
+      cursor.x >= bounds.x &&
+      cursor.x <= bounds.x + bounds.width &&
+      cursor.y >= bounds.y &&
+      cursor.y <= bounds.y + bounds.height;
+
+    if (isInside && !cursorWasInsideWindow) {
+      cursorWasInsideWindow = true;
+      if (hoverCollapseTimer) {
+        clearTimeout(hoverCollapseTimer);
+        hoverCollapseTimer = null;
+      }
+      if (!isExpanded && !hoverExpandTimer) {
+        hoverExpandTimer = setTimeout(() => {
+          hoverExpandTimer = null;
+          expandWindow();
+        }, HOVER_EXPAND_DELAY_MS);
+      }
+    } else if (!isInside && cursorWasInsideWindow) {
+      cursorWasInsideWindow = false;
+      if (hoverExpandTimer) {
+        clearTimeout(hoverExpandTimer);
+        hoverExpandTimer = null;
+      }
+      if (isExpanded && !hoverCollapseTimer) {
+        hoverCollapseTimer = setTimeout(() => {
+          hoverCollapseTimer = null;
+          collapseWindow();
+        }, HOVER_COLLAPSE_DELAY_MS);
+      }
+    }
+  }, HOVER_POLL_INTERVAL_MS);
+}
+
 // IPC Handlers
 function setupIPC(): void {
+  // Expand window (pill -> panel)
+  ipcMain.handle('window:expand', () => {
+    return expandWindow();
+  });
+
+  // Collapse window (panel -> pill)
+  ipcMain.handle('window:collapse', () => {
+    return collapseWindow();
+  });
+
+  // Get expand state
+  ipcMain.handle('window:getExpandState', () => {
+    return isExpanded;
+  });
+
+  // Get notch info
+  ipcMain.handle('window:getNotchInfo', () => {
+    return getNotchInfo();
+  });
+
+  // Move pill to next display
+  let currentDisplayIndex = 0;
+  ipcMain.handle('window:moveToNextDisplay', () => {
+    if (!mainWindow) return false;
+    const displays = screen.getAllDisplays();
+    if (displays.length <= 1) return false;
+    // Sync index to the display we're actually on, then advance.
+    const current = getCurrentDisplay();
+    const currentIdx = displays.findIndex(d => d.id === current.id);
+    currentDisplayIndex = ((currentIdx >= 0 ? currentIdx : currentDisplayIndex) + 1) % displays.length;
+    const target = displays[currentDisplayIndex];
+    const w = isExpanded ? EXPANDED_WIDTH : PILL_WIDTH;
+    const h = isExpanded ? EXPANDED_HEIGHT : PILL_HEIGHT;
+    const x = target.bounds.x + Math.round((target.workAreaSize.width - w) / 2);
+    const y = target.bounds.y;
+    mainWindow.setBounds({ x, y, width: w, height: h }, false);
+    return true;
+  });
+
+  // Number of connected displays
+  ipcMain.handle('window:getDisplayCount', () => {
+    return screen.getAllDisplays().length;
+  });
+
+  // Switch between the welcome (login/onboarding) window and the docked notch pill
+  ipcMain.handle('window:setMode', (_event, mode: 'welcome' | 'docked') => {
+    if (mode === 'welcome') return enterWelcomeMode();
+    return enterDockedMode();
+  });
+
+  ipcMain.handle('window:getMode', () => windowMode);
+
   // Toggle always on top
   ipcMain.handle('window:setAlwaysOnTop', (_event, value: boolean) => {
     if (mainWindow) {
-      mainWindow.setAlwaysOnTop(value, 'pop-up-menu', 1);
+      mainWindow.setAlwaysOnTop(value, 'floating', 1);
       return true;
     }
     return false;
@@ -288,7 +525,6 @@ function setupIPC(): void {
   // Set window opacity
   ipcMain.handle('window:setOpacity', (_event, value: number) => {
     if (mainWindow) {
-      // Clamp value between 0.3 and 1.0
       const opacity = Math.max(0.3, Math.min(1.0, value));
       mainWindow.setOpacity(opacity);
       return true;
@@ -337,71 +573,6 @@ function setupIPC(): void {
     return false;
   });
 
-  // Reset window to default size and position (like first launch)
-  ipcMain.handle('window:resetToDefault', () => {
-    if (mainWindow) {
-      const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
-      const defaultWidth = 350;
-      const defaultHeight = 340;
-      const defaultX = screenWidth - defaultWidth - 20;
-      const defaultY = 60;
-      
-      const newBounds = { x: defaultX, y: defaultY, width: defaultWidth, height: defaultHeight };
-      mainWindow.setBounds(newBounds, true);
-      // Save the new state so it persists
-      saveWindowState(newBounds);
-      return true;
-    }
-    return false;
-  });
-
-  // Enter PIP mode - shrink window to bottom-right corner
-  ipcMain.handle('window:enterPip', () => {
-    if (!mainWindow) return false;
-    pipSavedBounds = mainWindow.getBounds();
-    const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
-    const pipWidth = 230;
-    const pipHeight = 48;
-    const pipX = screenWidth - pipWidth - 20;
-    const pipY = screenHeight - pipHeight - 12;
-    mainWindow.setMinimumSize(140, 50);
-    mainWindow.setBounds({ x: pipX, y: pipY, width: pipWidth, height: pipHeight }, true);
-    mainWindow.webContents.send('window:pipChanged', true);
-    return true;
-  });
-
-  // PIP drag - start drag tracking
-  let pipDragStart: { screenX: number; screenY: number; winX: number; winY: number } | null = null;
-  ipcMain.handle('window:pipStartDrag', (_event, screenX: number, screenY: number) => {
-    if (!mainWindow) return;
-    const [winX, winY] = mainWindow.getPosition();
-    pipDragStart = { screenX, screenY, winX, winY };
-  });
-
-  // PIP drag - move window
-  ipcMain.handle('window:pipDragMove', (_event, screenX: number, screenY: number) => {
-    if (!mainWindow || !pipDragStart) return;
-    const dx = screenX - pipDragStart.screenX;
-    const dy = screenY - pipDragStart.screenY;
-    mainWindow.setPosition(pipDragStart.winX + dx, pipDragStart.winY + dy);
-  });
-
-  // Exit PIP mode - restore previous window bounds
-  ipcMain.handle('window:exitPip', () => {
-    if (!mainWindow) return false;
-    mainWindow.setMinimumSize(280, 400);
-    if (pipSavedBounds) {
-      mainWindow.setBounds(pipSavedBounds, true);
-      saveWindowState(pipSavedBounds);
-      pipSavedBounds = null;
-    } else {
-      const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
-      mainWindow.setBounds({ x: screenWidth - 370, y: 60, width: 350, height: 340 }, true);
-    }
-    mainWindow.webContents.send('window:pipChanged', false);
-    return true;
-  });
-
   // Refresh dock and floating (call after login)
   ipcMain.handle('window:refreshDock', () => {
     if (process.platform === 'darwin' && app.dock) {
@@ -422,39 +593,11 @@ function setupIPC(): void {
       }
       app.dock.show();
       
-      // Re-apply floating AFTER dock.show()
       setTimeout(() => {
         if (mainWindow) {
           mainWindow.setAlwaysOnTop(true, 'floating', 1);
         }
       }, 100);
-    }
-    return true;
-  });
-
-  // Set minimized mode - removes glass effect temporarily
-  ipcMain.handle('window:setMinimized', (_event, minimized: boolean) => {
-    if (!mainWindow) return false;
-    
-    if (minimized) {
-      // Remove the liquid glass effect by setting window to use vibrancy instead
-      // This effectively "disables" the custom glass view
-      mainWindow.setBackgroundColor('#00000000');
-    } else {
-      // Re-apply liquid glass when expanding
-      if (liquidGlass && liquidGlass.addView && glassViewId === null) {
-        try {
-          glassViewId = liquidGlass.addView(mainWindow.getNativeWindowHandle(), {
-            cornerRadius: 18,
-            tintColor: '#00000060',
-          });
-          if (glassViewId !== null && liquidGlass.unstable_setVariant) {
-            liquidGlass.unstable_setVariant(glassViewId, 2);
-          }
-        } catch (e) {
-          console.error('Failed to re-apply liquid glass:', e);
-        }
-      }
     }
     return true;
   });
@@ -466,7 +609,6 @@ function setupIPC(): void {
     }
 
     const { width: displayWidth, height: displayHeight } = screen.getPrimaryDisplay().size;
-    // Scale down for retina — use logical resolution
     const scaleFactor = screen.getPrimaryDisplay().scaleFactor;
     const logicalWidth = Math.round(displayWidth / scaleFactor) || 1280;
     const logicalHeight = Math.round(displayHeight / scaleFactor) || 800;
@@ -480,7 +622,6 @@ function setupIPC(): void {
       mainWindow?.webContents.send('agent:event', event);
     });
 
-    // Run the agent loop (non-blocking — runs in background)
     activeAgent.run(payload.taskText, payload.taskDescription).catch((err) => {
       console.error('Agent loop error:', err);
     });
@@ -500,7 +641,7 @@ function setupIPC(): void {
     return activeAgent?.getStatus() ?? 'idle';
   });
 
-  // OpenAI API proxy - bypasses renderer CSP restrictions
+  // OpenAI API proxy
   ipcMain.handle('ai:chat', async (_event, payload: { apiKey: string; model: string; messages: Array<{ role: string; content: string }>; temperature: number }) => {
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -673,6 +814,7 @@ app.whenReady().then(() => {
   setupIPC();
   registerGlobalShortcut();
   setupAutoUpdater();
+  startHoverTracking();
   
   // Set custom dock icon with delay, then re-apply floating
   setTimeout(() => {

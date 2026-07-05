@@ -1,8 +1,44 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
 const windowApi = {
+  // Expand/collapse (notch pill <-> panel)
+  expand: (): Promise<boolean> =>
+    ipcRenderer.invoke('window:expand'),
+
+  collapse: (): Promise<boolean> =>
+    ipcRenderer.invoke('window:collapse'),
+
+  getExpandState: (): Promise<boolean> =>
+    ipcRenderer.invoke('window:getExpandState'),
+
+  getNotchInfo: (): Promise<{ hasNotch: boolean; menuBarHeight: number }> =>
+    ipcRenderer.invoke('window:getNotchInfo'),
+
+  moveToNextDisplay: (): Promise<boolean> =>
+    ipcRenderer.invoke('window:moveToNextDisplay'),
+
+  getDisplayCount: (): Promise<number> =>
+    ipcRenderer.invoke('window:getDisplayCount'),
+
+  onExpandStateChanged: (callback: (expanded: boolean) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, expanded: boolean) => callback(expanded);
+    ipcRenderer.on('window:expandStateChanged', handler);
+    return () => ipcRenderer.removeListener('window:expandStateChanged', handler);
+  },
+
+  // Welcome (login/onboarding) window <-> docked notch pill
+  setWindowMode: (mode: 'welcome' | 'docked'): Promise<boolean> =>
+    ipcRenderer.invoke('window:setMode', mode),
+
+  getWindowMode: (): Promise<'welcome' | 'docked'> =>
+    ipcRenderer.invoke('window:getMode'),
+
+  onModeChanged: (callback: (mode: 'welcome' | 'docked') => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, mode: 'welcome' | 'docked') => callback(mode);
+    ipcRenderer.on('window:modeChanged', handler);
+    return () => ipcRenderer.removeListener('window:modeChanged', handler);
+  },
+
   // Window controls
   setAlwaysOnTop: (value: boolean): Promise<boolean> => 
     ipcRenderer.invoke('window:setAlwaysOnTop', value),
@@ -19,31 +55,18 @@ const windowApi = {
   toggleVisibility: (): Promise<boolean> => 
     ipcRenderer.invoke('window:toggle'),
   
-  // Set minimized mode (controls glass effect)
-  setMinimized: (minimized: boolean): Promise<boolean> =>
-    ipcRenderer.invoke('window:setMinimized', minimized),
-  
-  // Refresh dock icon and floating (call after login)
   refreshDock: (): Promise<boolean> =>
     ipcRenderer.invoke('window:refreshDock'),
   
-  // Quit app
   quitApp: (): Promise<void> =>
     ipcRenderer.invoke('app:quit'),
   
-  // Open external URL in system browser
   openExternal: (url: string): Promise<void> =>
     ipcRenderer.invoke('shell:openExternal', url),
   
-  // Resize window
   resizeWindow: (width: number, height: number): Promise<boolean> =>
     ipcRenderer.invoke('window:resize', width, height),
   
-  // Reset window to default size and position
-  resetWindowToDefault: (): Promise<boolean> =>
-    ipcRenderer.invoke('window:resetToDefault'),
-  
-  // System info
   getTheme: (): Promise<'dark' | 'light'> => 
     ipcRenderer.invoke('system:getTheme'),
   
@@ -69,25 +92,6 @@ const windowApi = {
     ipcRenderer.on('updater:downloaded', handler);
     return () => ipcRenderer.removeListener('updater:downloaded', handler);
   },
-  
-  // PIP mode
-  enterPip: (): Promise<boolean> =>
-    ipcRenderer.invoke('window:enterPip'),
-
-  exitPip: (): Promise<boolean> =>
-    ipcRenderer.invoke('window:exitPip'),
-
-  onPipChanged: (callback: (pip: boolean) => void): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, pip: boolean) => callback(pip);
-    ipcRenderer.on('window:pipChanged', handler);
-    return () => ipcRenderer.removeListener('window:pipChanged', handler);
-  },
-
-  pipStartDrag: (screenX: number, screenY: number): Promise<void> =>
-    ipcRenderer.invoke('window:pipStartDrag', screenX, screenY),
-
-  pipDragMove: (screenX: number, screenY: number): Promise<void> =>
-    ipcRenderer.invoke('window:pipDragMove', screenX, screenY),
 
   // AI - proxy OpenAI calls through main process
   aiChat: (payload: { apiKey: string; model: string; messages: Array<{ role: string; content: string }>; temperature: number }): Promise<{ error: boolean; data?: unknown; status?: number; body?: string }> =>
@@ -110,8 +114,6 @@ const windowApi = {
   },
 };
 
-// Expose the API to the renderer process
 contextBridge.exposeInMainWorld('windowApi', windowApi);
 
-// Type declaration for the exposed API
 export type WindowApi = typeof windowApi;

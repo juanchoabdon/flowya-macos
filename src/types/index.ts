@@ -188,23 +188,26 @@ export type FilterType = 'all' | 'backlog' | 'in_progress' | 'done';
 
 // Window API exposed via preload
 export interface WindowApi {
+  expand: () => Promise<boolean>;
+  collapse: () => Promise<boolean>;
+  getExpandState: () => Promise<boolean>;
+  getNotchInfo: () => Promise<{ hasNotch: boolean; menuBarHeight: number }>;
+  moveToNextDisplay: () => Promise<boolean>;
+  getDisplayCount: () => Promise<number>;
+  onExpandStateChanged: (callback: (expanded: boolean) => void) => () => void;
+  setWindowMode: (mode: 'welcome' | 'docked') => Promise<boolean>;
+  getWindowMode: () => Promise<'welcome' | 'docked'>;
+  onModeChanged: (callback: (mode: 'welcome' | 'docked') => void) => () => void;
   setAlwaysOnTop: (value: boolean) => Promise<boolean>;
   getAlwaysOnTop: () => Promise<boolean>;
   setVisibleOnAllWorkspaces: (value: boolean) => Promise<boolean>;
   setOpacity: (value: number) => Promise<boolean>;
   toggleVisibility: () => Promise<boolean>;
-  setMinimized: (minimized: boolean) => Promise<boolean>;
   refreshDock: () => Promise<boolean>;
   quitApp: () => Promise<void>;
   openExternal: (url: string) => Promise<void>;
   aiChat: (payload: { apiKey: string; model: string; messages: Array<{ role: string; content: string }>; temperature: number }) => Promise<{ error: boolean; data?: unknown; status?: number; body?: string }>;
   resizeWindow: (width: number, height: number) => Promise<boolean>;
-  resetWindowToDefault: () => Promise<boolean>;
-  enterPip: () => Promise<boolean>;
-  exitPip: () => Promise<boolean>;
-  onPipChanged: (callback: (pip: boolean) => void) => () => void;
-  pipStartDrag: (screenX: number, screenY: number) => Promise<void>;
-  pipDragMove: (screenX: number, screenY: number) => Promise<void>;
   getTheme: () => Promise<'dark' | 'light'>;
   onFocusChange: (callback: (focused: boolean) => void) => () => void;
   // Auto-updater
