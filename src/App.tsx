@@ -263,9 +263,9 @@ export default function App() {
   // falling back to highest-priority backlog. Mirrors the pill render logic.
   const pillTopTask = useMemo(() => {
     const byPriority = (a: Todo, b: Todo) => {
-      const po = { p0: 0, p1: 1, p2: 2, p3: 3 };
-      const pa = po[a.priority as keyof typeof po] ?? 9;
-      const pb = po[b.priority as keyof typeof po] ?? 9;
+      const po: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
+      const pa = po[a.priority ?? 'P1'] ?? 1;
+      const pb = po[b.priority ?? 'P1'] ?? 1;
       if (pa !== pb) return pa - pb;
       return a.position - b.position;
     };
