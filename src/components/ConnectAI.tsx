@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useEntitlement } from '../hooks/useEntitlement';
 
 // Base URL of the hosted Flowya MCP service. Override with VITE_FLOWYA_MCP_URL.
 const MCP_BASE = ((import.meta.env.VITE_FLOWYA_MCP_URL as string) || 'https://flowya-mcp.vercel.app').replace(/\/+$/, '');
 const MCP_ENDPOINT = `${MCP_BASE}/mcp`;
+const UPGRADE_URL = 'https://flowya.io/upgrade';
 
 interface McpToken {
   id: string;
@@ -16,6 +18,8 @@ interface McpToken {
 interface ConnectAIModalProps {
   isOpen: boolean;
   onClose: () => void;
+  userId?: string | null;
+  onOpenMembership?: () => void;
 }
 
 async function authHeader(): Promise<Record<string, string>> {
@@ -25,13 +29,19 @@ async function authHeader(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' };
 }
 
-export function ConnectAIModal({ isOpen, onClose }: ConnectAIModalProps) {
+export function ConnectAIModal({ isOpen, onClose, userId, onOpenMembership }: ConnectAIModalProps) {
   const [tokens, setTokens] = useState<McpToken[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newToken, setNewToken] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const { isPro, loading: entLoading, refresh: refreshEntitlement } = useEntitlement(userId);
+
+  const openUpgrade = useCallback(() => {
+    if (onOpenMembership) onOpenMembership();
+    else window.windowApi?.openExternal(UPGRADE_URL);
+  }, [onOpenMembership]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,8 +59,15 @@ export function ConnectAIModal({ isOpen, onClose }: ConnectAIModalProps) {
   }, []);
 
   useEffect(() => {
-    if (isOpen) void load();
-  }, [isOpen, load]);
+    if (isOpen) {
+      void refreshEntitlement();
+    }
+  }, [isOpen, refreshEntitlement]);
+
+  useEffect(() => {
+    // Only load MCP tokens once we know the user is entitled to use them.
+    if (isOpen && isPro) void load();
+  }, [isOpen, isPro, load]);
 
   const createToken = useCallback(async () => {
     setCreating(true);
@@ -106,6 +123,20 @@ export function ConnectAIModal({ isOpen, onClose }: ConnectAIModalProps) {
         </div>
 
         <div className="recurring-content">
+          {entLoading ? (
+            <div style={{ fontSize: 12, opacity: 0.6 }}>Loading…</div>
+          ) : !isPro ? (
+            <div style={{ textAlign: 'center', padding: '10px 6px 4px' }}>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Connecting AI is a Pro feature</div>
+              <p style={{ fontSize: 13, opacity: 0.7, marginTop: 0 }}>
+                Upgrade to Flowya Pro to connect Claude, Cursor, ChatGPT and any MCP client so your AI can read and manage your tasks.
+              </p>
+              <button className="recurring-add-btn" style={{ marginTop: 12 }} onClick={openUpgrade}>
+                Upgrade to Pro
+              </button>
+            </div>
+          ) : (
+          <>
           <p style={{ fontSize: 13, opacity: 0.7, marginTop: 0 }}>
             Generate a token to let Cursor, Claude, or Cowork read and manage your Flowya tasks.
           </p>
@@ -167,6 +198,8 @@ export function ConnectAIModal({ isOpen, onClose }: ConnectAIModalProps) {
           >
             {creating ? 'Generating…' : 'Generate token'}
           </button>
+          </>
+          )}
         </div>
       </div>
     </div>

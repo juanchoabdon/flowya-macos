@@ -22,6 +22,7 @@ interface GlassBarProps {
   onOpenWhatsNew?: () => void;
   onOpenRecurringTasks?: () => void;
   onOpenConnectAI?: () => void;
+  onOpenMembership?: () => void;
   streakCount?: number;
   streakActive?: boolean;
   showFlame?: boolean;
@@ -47,6 +48,7 @@ export function GlassBar({
   showFlame = false,
   onOpenRecurringTasks,
   onOpenConnectAI,
+  onOpenMembership,
 }: GlassBarProps) {
   const isAllSelected = selectedSpaceId === ALL_SPACES_ID;
   const [hasUnseenUpdates, markUpdatesSeen] = useHasUnseenUpdates();
@@ -428,6 +430,19 @@ export function GlassBar({
                 </div>
               )}
 
+              {onOpenMembership && (
+                <div
+                  className="dropdown-item"
+                  onClick={() => {
+                    onOpenMembership();
+                    setAccountMenuOpen(false);
+                  }}
+                >
+                  <MembershipIcon />
+                  <span>Membership</span>
+                </div>
+              )}
+
               <div
                 className="dropdown-item"
                 onClick={() => {
@@ -620,6 +635,20 @@ function ConnectAIIcon({ size = 14 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3.2" />
       <path d="M12 3v3.2M12 17.8V21M3 12h3.2M17.8 12H21M5.6 5.6l2.3 2.3M16.1 16.1l2.3 2.3M18.4 5.6l-2.3 2.3M7.9 16.1l-2.3 2.3" />
+    </svg>
+  );
+}
+
+function MembershipIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none">
+      <path
+        d="M1.5 4L4 6L7 2.5L10 6L12.5 4L11.5 10.5H2.5L1.5 4Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

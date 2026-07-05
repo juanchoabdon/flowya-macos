@@ -22,6 +22,7 @@ import { useAIProfile } from './hooks/useAIProfile';
 import { AIDuplicatesModal } from './components/AIDuplicatesModal';
 import { RecurringTasksModal } from './components/RecurringTasksModal';
 import { ConnectAIModal } from './components/ConnectAI';
+import { MembershipModal } from './components/Membership';
 import { useRecurringTasks } from './hooks/useRecurringTasks';
 import { useAgent } from './hooks/useAgent';
 import { AgentOverlay, AgentConfirmDialog } from './components/AgentOverlay';
@@ -83,6 +84,7 @@ export default function App() {
   // Recurring Tasks state
   const [showRecurringTasks, setShowRecurringTasks] = useState(false);
   const [showConnectAI, setShowConnectAI] = useState(false);
+  const [showMembership, setShowMembership] = useState(false);
 
   // Duplicates state
   const [showDuplicates, setShowDuplicates] = useState(false);
@@ -1036,6 +1038,7 @@ export default function App() {
         showFlame={showFlame}
         onOpenRecurringTasks={() => setShowRecurringTasks(true)}
         onOpenConnectAI={() => setShowConnectAI(true)}
+        onOpenMembership={() => setShowMembership(true)}
       />
 
       <div className="main-content">
@@ -1194,6 +1197,18 @@ export default function App() {
       <ConnectAIModal
         isOpen={showConnectAI}
         onClose={() => setShowConnectAI(false)}
+        userId={user?.id}
+        onOpenMembership={() => {
+          setShowConnectAI(false);
+          setShowMembership(true);
+        }}
+      />
+
+      {/* Membership / Flowya Pro status + billing */}
+      <MembershipModal
+        isOpen={showMembership}
+        onClose={() => setShowMembership(false)}
+        userId={user?.id}
       />
 
       {/* Daily Summary Modal (morning greeting) */}
