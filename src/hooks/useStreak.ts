@@ -108,52 +108,32 @@ export function useStreak(userId?: string) {
     return () => clearInterval(interval);
   }, [streak.lastCompletedAt, streak.count]);
 
+  // Optimistic local update — the actual DB write is handled by the
+  // fn_update_streak_on_done Postgres trigger so that completions from
+  // the MCP (or any other client) also count. The Realtime subscription
+  // above will reconcile state if the trigger's result differs.
   const recordCompletion = useCallback(() => {
-    if (!userId) return;
+    const now = new Date();
 
     setStreak(prev => {
-      const now = new Date();
       let newCount = 1;
-
       if (prev.lastCompletedAt) {
         const elapsed = now.getTime() - new Date(prev.lastCompletedAt).getTime();
         if (elapsed <= STREAK_WINDOW_MS) {
           newCount = prev.count + 1;
         }
       }
-
       const today = getToday();
       const bestToday = today === prev.todayDate
         ? Math.max(prev.bestToday, newCount)
         : newCount;
 
-      const newState: StreakState = {
-        count: newCount,
-        lastCompletedAt: now.toISOString(),
-        bestToday,
-        todayDate: today,
-      };
-
-      // Save to Supabase
-      supabase
-        .from(TABLE)
-        .upsert({
-          user_id: userId,
-          streak_count: newCount,
-          last_completed_at: now.toISOString(),
-          best_today: bestToday,
-          today_date: today,
-        })
-        .then(({ error }) => {
-          if (error) console.error('[Streak] Failed to save:', error);
-        });
-
-      return newState;
+      return { count: newCount, lastCompletedAt: now.toISOString(), bestToday, todayDate: today };
     });
 
     setShowFlame(true);
     setTimeout(() => setShowFlame(false), 2000);
-  }, [userId]);
+  }, []);
 
   const getYesterdayBestStreak = useCallback((): number => {
     try {
