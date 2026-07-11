@@ -262,16 +262,10 @@ export default function App() {
   // The single task surfaced in the collapsed pill: highest-priority in-progress,
   // falling back to highest-priority backlog. Mirrors the pill render logic.
   const pillTopTask = useMemo(() => {
-    const byPriority = (a: Todo, b: Todo) => {
-      const po: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
-      const pa = po[a.priority ?? 'P1'] ?? 1;
-      const pb = po[b.priority ?? 'P1'] ?? 1;
-      if (pa !== pb) return pa - pb;
-      return a.position - b.position;
-    };
+    const byPosition = (a: Todo, b: Todo) => a.position - b.position;
     const active = todos.filter(t => !t.archived && t.status !== 'done');
-    const inProgress = active.filter(t => t.status === 'in_progress').sort(byPriority);
-    const backlog = active.filter(t => t.status === 'backlog').sort(byPriority);
+    const inProgress = active.filter(t => t.status === 'in_progress').sort(byPosition);
+    const backlog = active.filter(t => t.status === 'backlog').sort(byPosition);
     return inProgress[0] || backlog[0] || null;
   }, [todos]);
 
@@ -399,6 +393,17 @@ export default function App() {
     }
   }, [todosLoading, todos]);
 
+  // Debounced refetch for realtime events — reorder sends N updates at once;
+  // coalesce them into a single fetch 120 ms after the last event.
+  const realtimeRefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedRefetch = useCallback(() => {
+    if (realtimeRefetchTimer.current) clearTimeout(realtimeRefetchTimer.current);
+    realtimeRefetchTimer.current = setTimeout(() => {
+      void refetchTodos();
+      realtimeRefetchTimer.current = null;
+    }, 120);
+  }, [refetchTodos]);
+
   // Track recent local changes to avoid refetch blink from realtime echo
   const recentLocalChanges = useRef<Map<string, number>>(new Map());
 
@@ -421,8 +426,8 @@ export default function App() {
     onTodoInsert: useCallback((todo: Todo) => {
       if (isLocalChange(todo.id)) return;
       console.log('[Realtime] Todo inserted from another device:', todo.id);
-      refetchTodos();
-    }, [refetchTodos, isLocalChange]),
+      debouncedRefetch();
+    }, [debouncedRefetch, isLocalChange]),
     onTodoUpdate: useCallback((todo: Todo) => {
       if (isLocalChange(todo.id)) {
         if (detailTodo?.id === todo.id) {
@@ -431,19 +436,19 @@ export default function App() {
         return;
       }
       console.log('[Realtime] Todo updated from another device:', todo.id);
-      refetchTodos();
+      debouncedRefetch();
       if (detailTodo?.id === todo.id) {
         setDetailTodo(todo);
       }
-    }, [refetchTodos, detailTodo?.id, isLocalChange]),
+    }, [debouncedRefetch, detailTodo?.id, isLocalChange]),
     onTodoDelete: useCallback((id: string) => {
       if (isLocalChange(id)) return;
       console.log('[Realtime] Todo deleted from another device:', id);
-      refetchTodos();
+      debouncedRefetch();
       if (detailTodo?.id === id) {
         setDetailTodo(null);
       }
-    }, [refetchTodos, detailTodo?.id, isLocalChange]),
+    }, [debouncedRefetch, detailTodo?.id, isLocalChange]),
   });
 
   // Auto-sync when reconnecting to internet or window regains visibility
@@ -871,12 +876,8 @@ export default function App() {
         const bTime = b.completed_at ? new Date(b.completed_at).getTime() : 0;
         return bTime - aTime;
       }
-
-      const aIsP0 = a.priority === 'P0';
-      const bIsP0 = b.priority === 'P0';
-      if (aIsP0 && !bIsP0) return -1;
-      if (!aIsP0 && bIsP0) return 1;
-
+      // Sort purely by position — priority is a label, not a sort key.
+      // The LLM and drag-and-drop both set position explicitly, so trust it.
       return a.position - b.position;
     });
 
