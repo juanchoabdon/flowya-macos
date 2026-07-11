@@ -262,10 +262,19 @@ export default function App() {
   // The single task surfaced in the collapsed pill: highest-priority in-progress,
   // falling back to highest-priority backlog. Mirrors the pill render logic.
   const pillTopTask = useMemo(() => {
-    const byPosition = (a: Todo, b: Todo) => a.position - b.position;
     const active = todos.filter(t => !t.archived && t.status !== 'done');
-    const inProgress = active.filter(t => t.status === 'in_progress').sort(byPosition);
-    const backlog = active.filter(t => t.status === 'backlog').sort(byPosition);
+    const inProgress = active
+      .filter(t => t.status === 'in_progress')
+      .sort((a, b) => {
+        // Most-recently-started in_progress task = what's in the pill.
+        const aT = a.started_at ? new Date(a.started_at).getTime() : 0;
+        const bT = b.started_at ? new Date(b.started_at).getTime() : 0;
+        if (aT !== bT) return bT - aT;
+        return a.position - b.position;
+      });
+    const backlog = active
+      .filter(t => t.status === 'backlog')
+      .sort((a, b) => a.position - b.position);
     return inProgress[0] || backlog[0] || null;
   }, [todos]);
 
@@ -876,15 +885,22 @@ export default function App() {
         const bTime = b.completed_at ? new Date(b.completed_at).getTime() : 0;
         return bTime - aTime;
       }
-      // When viewing a single status tab, sort purely by position.
-      // When viewing all tasks mixed, group by status (in_progress first, then
-      // backlog, then done) and sort by position within each group.
-      // This ensures in_progress tasks always surface above backlog regardless
-      // of their absolute position values (which are per-group, not global).
+      // Group by status (in_progress → backlog → done).
       const statusOrder: Record<string, number> = { in_progress: 0, backlog: 1, done: 2 };
       const sa = statusOrder[a.status] ?? 1;
       const sb = statusOrder[b.status] ?? 1;
       if (sa !== sb) return sa - sb;
+
+      // Within in_progress: most-recently-started first.
+      // The MCP always writes started_at = now() on status → in_progress,
+      // so the task just picked up by the AI surfaces to the top automatically,
+      // regardless of position values (which are shared across status groups).
+      if (a.status === 'in_progress') {
+        const aT = a.started_at ? new Date(a.started_at).getTime() : 0;
+        const bT = b.started_at ? new Date(b.started_at).getTime() : 0;
+        if (aT !== bT) return bT - aT; // DESC — newest started = first
+      }
+
       return a.position - b.position;
     });
 
