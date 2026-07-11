@@ -876,8 +876,15 @@ export default function App() {
         const bTime = b.completed_at ? new Date(b.completed_at).getTime() : 0;
         return bTime - aTime;
       }
-      // Sort purely by position — priority is a label, not a sort key.
-      // The LLM and drag-and-drop both set position explicitly, so trust it.
+      // When viewing a single status tab, sort purely by position.
+      // When viewing all tasks mixed, group by status (in_progress first, then
+      // backlog, then done) and sort by position within each group.
+      // This ensures in_progress tasks always surface above backlog regardless
+      // of their absolute position values (which are per-group, not global).
+      const statusOrder: Record<string, number> = { in_progress: 0, backlog: 1, done: 2 };
+      const sa = statusOrder[a.status] ?? 1;
+      const sb = statusOrder[b.status] ?? 1;
+      if (sa !== sb) return sa - sb;
       return a.position - b.position;
     });
 
