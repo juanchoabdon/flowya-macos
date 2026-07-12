@@ -115,6 +115,38 @@ export interface WeeklyGoal {
   created_at: string;
 }
 
+export type DailyPlanStatus = 'draft' | 'confirmed' | 'closed';
+export type DailyPlanBucket = 'deadline' | 'active' | 'follow_up' | 'habit';
+export type DailyPlanCapacity = 'light' | 'normal' | 'packed';
+
+export interface DailyPlan {
+  id: string;
+  user_id: string;
+  plan_date: string;
+  timezone: string;
+  status: DailyPlanStatus;
+  capacity: DailyPlanCapacity | null;
+  summary: string | null;
+  confirmed_at: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DailyPlanItem {
+  id: string;
+  task_id: string;
+  bucket: DailyPlanBucket;
+  position: number;
+  task: Todo | null;
+  missing: boolean;
+}
+
+export interface DailyPlanView {
+  plan: DailyPlan | null;
+  items: DailyPlanItem[];
+}
+
 export interface AIWeeklyPlanMapping {
   goalPosition: number;
   goalText: string;

@@ -5516,6 +5516,222 @@ body {
 }
 
 /* ============================================ */
+/* Planning Panel (week + today, read-only)     */
+/* ============================================ */
+
+.planning-panel {
+  margin: 0 12px 8px;
+  border: 1px solid rgba(127, 127, 127, 0.16);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.planning-section + .planning-section {
+  border-top: 1px solid rgba(127, 127, 127, 0.12);
+}
+
+.planning-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.planning-section-toggle:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.planning-section-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.planning-icon {
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.planning-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+}
+
+.planning-progress,
+.planning-status {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.18);
+  opacity: 0.8;
+}
+
+.planning-status-confirmed {
+  background: rgba(78, 205, 196, 0.18);
+  color: #4ECDC4;
+}
+
+.planning-status-draft {
+  background: rgba(255, 183, 77, 0.18);
+  color: #FFB74D;
+}
+
+.planning-status-closed {
+  background: rgba(127, 127, 127, 0.22);
+}
+
+.planning-chevron {
+  opacity: 0.5;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.planning-section-body {
+  padding: 0 12px 10px;
+}
+
+.planning-summary {
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.75;
+  margin: 0 0 8px;
+}
+
+.planning-empty {
+  font-size: 12px;
+  opacity: 0.45;
+  margin: 0;
+  padding: 2px 0 4px;
+}
+
+.planning-bucket + .planning-bucket {
+  margin-top: 8px;
+}
+
+.planning-bucket-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.45;
+  margin-bottom: 4px;
+}
+
+.planning-task-row,
+.planning-goal-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 0;
+  background: transparent;
+  border: none;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+
+.planning-task-row {
+  cursor: pointer;
+}
+
+.planning-task-row:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.planning-task-row:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.planning-task-row.missing .planning-task-text {
+  font-style: italic;
+  opacity: 0.5;
+}
+
+.planning-task-check {
+  font-size: 11px;
+  width: 14px;
+  flex-shrink: 0;
+  opacity: 0.5;
+  margin-top: 1px;
+}
+
+.planning-task-check.checked {
+  color: #4ECDC4;
+  opacity: 1;
+}
+
+.planning-task-text,
+.planning-goal-text {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.planning-task-text.completed,
+.planning-goal-text.completed {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+.planning-task-priority {
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+
+.planning-task-space-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+
+.planning-goal-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.planning-linked-task {
+  font-size: 11px;
+  opacity: 0.65;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.planning-linked-task:hover {
+  opacity: 0.95;
+}
+
+.planning-goal-row.done {
+  opacity: 0.7;
+}
+
+.planning-task-row.done {
+  opacity: 0.75;
+}
+
+/* ============================================ */
 /* Recurring Tasks Modal                        */
 /* ============================================ */
 

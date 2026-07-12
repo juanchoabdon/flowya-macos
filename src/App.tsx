@@ -32,6 +32,9 @@ import { prioritizeTasks, renameTasks, findDuplicates } from './lib/openai';
 import { NotesView } from './components/NotesView';
 import { useNotes } from './hooks/useNotes';
 import type { FilterType, ViewMode, Todo, Priority, AIAnalysisResult, AIRenameResult, AIRenameSuggestion, AIDuplicatesResult } from './types';
+import { PlanningPanel } from './components/PlanningPanel';
+import { useWeeklyGoals } from './hooks/useWeeklyGoals';
+import { useDailyPlan } from './hooks/useDailyPlan';
 import * as analytics from './lib/analytics';
 
 export default function App() {
@@ -126,6 +129,9 @@ export default function App() {
     updateRecurringTask: updateRecurring,
     deleteRecurringTask: deleteRecurring,
   } = useRecurringTasks(user?.id, refetchTodos);
+
+  const { goals: weeklyGoals } = useWeeklyGoals(user?.id);
+  const { view: dailyPlanView } = useDailyPlan(user?.id);
 
   // Agent state
   const agent = useAgent();
@@ -420,8 +426,8 @@ export default function App() {
     return Date.now() - timestamp < 5000;
   }, []);
 
-  // Realtime sync with iOS app
-  useRealtime({
+  // Realtime sync with iOS app (+ reconnect on channel errors)
+  const { reconnect: reconnectRealtime } = useRealtime({
     enabled: !!user?.id,
     onTodoInsert: useCallback((todo: Todo) => {
       if (isLocalChange(todo.id)) return;
@@ -451,28 +457,42 @@ export default function App() {
     }, [debouncedRefetch, detailTodo?.id, isLocalChange]),
   });
 
-  // Auto-sync when reconnecting to internet or window regains visibility
+  // Auto-sync when reconnecting to internet, regaining visibility/focus, or on a timer.
+  // iOS already polls every 15s as a Realtime fallback; macOS menu-bar windows often
+  // keep a stale websocket while Cursor has focus, so we match that resilience here.
   useEffect(() => {
-    const handleOnline = () => {
-      console.log('[Sync] Back online, refetching...');
-      refetchTodos();
+    if (!user?.id) return;
+
+    const sync = (reason: string, reconnect = false) => {
+      console.log(`[Sync] ${reason}`);
+      void refetchTodos();
+      if (reconnect) reconnectRealtime();
     };
+
+    const handleOnline = () => sync('Back online, refetching...', true);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[Sync] Window visible again, refetching...');
-        refetchTodos();
+        sync('Window visible again, refetching...', true);
       }
     };
+
+    const focusUnsub = window.windowApi?.onFocusChange?.((focused) => {
+      if (focused) sync('Window focused, refetching...', true);
+    });
+
+    const interval = setInterval(() => sync('Periodic refresh'), 30_000);
 
     window.addEventListener('online', handleOnline);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
+      clearInterval(interval);
       window.removeEventListener('online', handleOnline);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      focusUnsub?.();
     };
-  }, [refetchTodos]);
+  }, [user?.id, refetchTodos, reconnectRealtime]);
 
   // Secret: Cmd+Shift+D to show today's progress
   const [showTodaySummary, setShowTodaySummary] = useState(false);
@@ -1116,6 +1136,17 @@ export default function App() {
           />
         ) : (
           <>
+            <PlanningPanel
+              weeklyGoals={weeklyGoals}
+              dailyPlan={dailyPlanView}
+              spaces={spaces}
+              todos={todos}
+              onOpenTask={(todoId) => {
+                const todo = todos.find(t => t.id === todoId);
+                if (todo) setDetailTodo(todo);
+              }}
+            />
+
             <FilterBar
               filter={filter}
               onFilterChange={handleFilterChange}

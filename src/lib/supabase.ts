@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Space, Todo, Settings, WeeklyGoal, RecurringTask, Note } from '../types';
+import type { Space, Todo, Settings, WeeklyGoal, RecurringTask, Note, DailyPlan, DailyPlanView } from '../types';
 import { SPACE_COLORS } from '../types';
 
 // Get Supabase credentials from environment variables
@@ -511,6 +511,74 @@ export async function updateWeeklyGoalCompletion(goalId: string, completed: bool
   if (error) {
     console.error('Error updating weekly goal completion:', error);
   }
+}
+
+// ============ Daily Plans API ============
+
+const DEFAULT_TZ = 'America/Mexico_City';
+
+export function getLocalDateString(date: Date = new Date(), timezone = DEFAULT_TZ): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+async function joinDailyPlanItems(
+  items: Array<{ id: string; task_id: string; bucket: string; position: number }>,
+): Promise<DailyPlanView['items']> {
+  if (items.length === 0) return [];
+  const taskIds = items.map(i => i.task_id);
+  const { data } = await supabase.from('todos').select('*').in('id', taskIds);
+  const taskMap = new Map((data || []).map((t: Todo) => [t.id, t]));
+
+  return items.map(item => ({
+    id: item.id,
+    task_id: item.task_id,
+    bucket: item.bucket as DailyPlanView['items'][0]['bucket'],
+    position: item.position,
+    task: taskMap.get(item.task_id) ?? null,
+    missing: !taskMap.has(item.task_id),
+  }));
+}
+
+export async function getDailyPlan(
+  userId: string,
+  date?: string,
+  timezone = DEFAULT_TZ,
+): Promise<DailyPlanView> {
+  const planDate = date ?? getLocalDateString(new Date(), timezone);
+
+  const { data: plan, error } = await supabase
+    .from('daily_plans')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('plan_date', planDate)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching daily plan:', error);
+    return { plan: null, items: [] };
+  }
+
+  if (!plan) return { plan: null, items: [] };
+
+  const { data: items, error: itemsErr } = await supabase
+    .from('daily_plan_items')
+    .select('id, task_id, bucket, position')
+    .eq('daily_plan_id', plan.id)
+    .is('removed_at', null)
+    .order('position', { ascending: true });
+
+  if (itemsErr) {
+    console.error('Error fetching daily plan items:', itemsErr);
+    return { plan: plan as DailyPlan, items: [] };
+  }
+
+  const joined = await joinDailyPlanItems(items || []);
+  return { plan: plan as DailyPlan, items: joined };
 }
 
 // ============ Recurring Tasks API ============

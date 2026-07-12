@@ -1,7 +1,9 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import type { Todo, Space } from '../types';
+
+const RECONNECT_STATUSES = new Set(['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED']);
 
 interface UseRealtimeOptions {
   onTodoInsert?: (todo: Todo) => void;
@@ -30,6 +32,17 @@ export function useRealtime(options: UseRealtimeOptions) {
 
   const todosChannelRef = useRef<RealtimeChannel | null>(null);
   const spacesChannelRef = useRef<RealtimeChannel | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [sessionId, setSessionId] = useState(0);
+
+  const scheduleReconnect = useCallback((reason: string) => {
+    console.warn(`[Realtime] ${reason} — reconnecting in 2s`);
+    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    reconnectTimerRef.current = setTimeout(() => {
+      setSessionId((s) => s + 1);
+      reconnectTimerRef.current = null;
+    }, 2000);
+  }, []);
 
   // Store callbacks in refs to avoid re-subscribing on every render
   const callbacksRef = useRef({
@@ -104,9 +117,11 @@ export function useRealtime(options: UseRealtimeOptions) {
   useEffect(() => {
     if (!enabled) return;
 
+    const channelSuffix = String(sessionId);
+
     // Subscribe to todos changes
     todosChannelRef.current = supabase
-      .channel('todos-realtime')
+      .channel(`todos-realtime-${channelSuffix}`)
       .on(
         'postgres_changes',
         {
@@ -117,12 +132,15 @@ export function useRealtime(options: UseRealtimeOptions) {
         handleTodosChange as (payload: RealtimePostgresChangesPayload<{ [key: string]: unknown }>) => void
       )
       .subscribe((status) => {
-        console.log('Todos realtime subscription status:', status);
+        console.log('[Realtime] Todos subscription:', status);
+        if (RECONNECT_STATUSES.has(status)) {
+          scheduleReconnect(`todos ${status}`);
+        }
       });
 
     // Subscribe to spaces changes
     spacesChannelRef.current = supabase
-      .channel('spaces-realtime')
+      .channel(`spaces-realtime-${channelSuffix}`)
       .on(
         'postgres_changes',
         {
@@ -133,11 +151,18 @@ export function useRealtime(options: UseRealtimeOptions) {
         handleSpacesChange as (payload: RealtimePostgresChangesPayload<{ [key: string]: unknown }>) => void
       )
       .subscribe((status) => {
-        console.log('Spaces realtime subscription status:', status);
+        console.log('[Realtime] Spaces subscription:', status);
+        if (RECONNECT_STATUSES.has(status)) {
+          scheduleReconnect(`spaces ${status}`);
+        }
       });
 
     // Cleanup on unmount
     return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       if (todosChannelRef.current) {
         supabase.removeChannel(todosChannelRef.current);
         todosChannelRef.current = null;
@@ -147,9 +172,9 @@ export function useRealtime(options: UseRealtimeOptions) {
         spacesChannelRef.current = null;
       }
     };
-  }, [enabled, handleTodosChange, handleSpacesChange]);
+  }, [enabled, handleTodosChange, handleSpacesChange, sessionId, scheduleReconnect]);
 
   return {
-    isSubscribed: todosChannelRef.current !== null && spacesChannelRef.current !== null,
+    reconnect: useCallback(() => setSessionId((s) => s + 1), []),
   };
 }

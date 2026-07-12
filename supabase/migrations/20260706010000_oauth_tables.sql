@@ -41,6 +41,7 @@ create table if not exists public.oauth_tokens (
 
 -- RLS: clients are public (needed for validation endpoint)
 alter table public.oauth_clients enable row level security;
+drop policy if exists "oauth_clients read-only public" on public.oauth_clients;
 create policy "oauth_clients read-only public"
   on public.oauth_clients for select using (true);
 
