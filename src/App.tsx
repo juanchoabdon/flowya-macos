@@ -32,7 +32,7 @@ import { prioritizeTasks, renameTasks, findDuplicates } from './lib/openai';
 import { NotesView } from './components/NotesView';
 import { useNotes } from './hooks/useNotes';
 import type { FilterType, ViewMode, Todo, Priority, AIAnalysisResult, AIRenameResult, AIRenameSuggestion, AIDuplicatesResult } from './types';
-import { PlanningPanel } from './components/PlanningPanel';
+import { PlanningPopover } from './components/PlanningPopover';
 import { useWeeklyGoals } from './hooks/useWeeklyGoals';
 import { useDailyPlan } from './hooks/useDailyPlan';
 import * as analytics from './lib/analytics';
@@ -130,7 +130,7 @@ export default function App() {
     deleteRecurringTask: deleteRecurring,
   } = useRecurringTasks(user?.id, refetchTodos);
 
-  const { goals: weeklyGoals } = useWeeklyGoals(user?.id);
+  const { goals: weeklyGoals, showsPlannedWeekAhead, refetch: refetchWeeklyGoals } = useWeeklyGoals(user?.id);
   const { view: dailyPlanView } = useDailyPlan(user?.id);
 
   // Agent state
@@ -466,6 +466,7 @@ export default function App() {
     const sync = (reason: string, reconnect = false) => {
       console.log(`[Sync] ${reason}`);
       void refetchTodos();
+      void refetchWeeklyGoals();
       if (reconnect) reconnectRealtime();
     };
 
@@ -492,7 +493,7 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       focusUnsub?.();
     };
-  }, [user?.id, refetchTodos, reconnectRealtime]);
+  }, [user?.id, refetchTodos, refetchWeeklyGoals, reconnectRealtime]);
 
   // Secret: Cmd+Shift+D to show today's progress
   const [showTodaySummary, setShowTodaySummary] = useState(false);
@@ -1076,20 +1077,35 @@ export default function App() {
       <div className="main-content">
         {/* View mode toggle */}
         <div className="view-mode-toggle">
-          <button
-            className={`view-mode-btn ${viewMode === 'notes' ? 'active' : ''}`}
-            onClick={() => handleViewModeChange('notes')}
-          >
-            <NotesIcon />
-            Notes
-          </button>
-          <button
-            className={`view-mode-btn ${viewMode === 'tasks' ? 'active' : ''}`}
-            onClick={() => handleViewModeChange('tasks')}
-          >
-            <TasksIcon />
-            Tasks
-          </button>
+          <div className="view-mode-tabs">
+            <button
+              className={`view-mode-btn ${viewMode === 'notes' ? 'active' : ''}`}
+              onClick={() => handleViewModeChange('notes')}
+            >
+              <NotesIcon />
+              Notes
+            </button>
+            <button
+              className={`view-mode-btn ${viewMode === 'tasks' ? 'active' : ''}`}
+              onClick={() => handleViewModeChange('tasks')}
+            >
+              <TasksIcon />
+              Tasks
+            </button>
+          </div>
+          {viewMode === 'tasks' && (
+            <PlanningPopover
+              weeklyGoals={weeklyGoals}
+              dailyPlan={dailyPlanView}
+              spaces={spaces}
+              todos={todos}
+              showsPlannedWeekAhead={showsPlannedWeekAhead}
+              onOpenTask={(todoId) => {
+                const todo = todos.find(t => t.id === todoId);
+                if (todo) setDetailTodo(todo);
+              }}
+            />
+          )}
         </div>
 
         {viewMode === 'notes' ? (
@@ -1136,17 +1152,6 @@ export default function App() {
           />
         ) : (
           <>
-            <PlanningPanel
-              weeklyGoals={weeklyGoals}
-              dailyPlan={dailyPlanView}
-              spaces={spaces}
-              todos={todos}
-              onOpenTask={(todoId) => {
-                const todo = todos.find(t => t.id === todoId);
-                if (todo) setDetailTodo(todo);
-              }}
-            />
-
             <FilterBar
               filter={filter}
               onFilterChange={handleFilterChange}

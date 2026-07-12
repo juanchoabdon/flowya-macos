@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { WeeklyGoal, Todo } from '../types';
-import { getWeeklyGoals, getLastWeekGoals, getMonday, updateWeeklyGoalCompletion, supabase } from '../lib/supabase';
+import { fetchDisplayWeeklyGoals, getLastWeekGoals, updateWeeklyGoalCompletion, supabase } from '../lib/supabase';
 
 interface UseWeeklyGoalsReturn {
   goals: WeeklyGoal[];
   lastWeekGoals: WeeklyGoal[];
   loading: boolean;
   hasGoalsThisWeek: boolean;
+  showsPlannedWeekAhead: boolean;
   progress: { completed: number; total: number };
   refetch: () => Promise<void>;
   syncCompletion: (todos: Todo[]) => void;
@@ -38,18 +39,19 @@ function getLinkedIds(goal: WeeklyGoal): string[] {
 export function useWeeklyGoals(userId: string | undefined): UseWeeklyGoalsReturn {
   const [goals, setGoals] = useState<WeeklyGoal[]>([]);
   const [lastWeekGoals, setLastWeekGoals] = useState<WeeklyGoal[]>([]);
+  const [showsPlannedWeekAhead, setShowsPlannedWeekAhead] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchGoals = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     try {
-      const weekStart = getMonday();
-      const [current, previous] = await Promise.all([
-        getWeeklyGoals(userId, weekStart),
+      const [display, previous] = await Promise.all([
+        fetchDisplayWeeklyGoals(userId),
         getLastWeekGoals(userId),
       ]);
-      setGoals(current);
+      setGoals(display.goals);
+      setShowsPlannedWeekAhead(display.showsPlannedWeekAhead);
       setLastWeekGoals(previous);
     } catch (err) {
       console.error('[WeeklyGoals] fetch error:', err);
@@ -152,6 +154,7 @@ export function useWeeklyGoals(userId: string | undefined): UseWeeklyGoalsReturn
     lastWeekGoals,
     loading,
     hasGoalsThisWeek,
+    showsPlannedWeekAhead,
     progress: { completed, total },
     refetch: fetchGoals,
     syncCompletion,

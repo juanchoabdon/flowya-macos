@@ -5519,12 +5519,73 @@ body {
 /* Planning Panel (week + today, read-only)     */
 /* ============================================ */
 
+.planning-popover-root {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.planning-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+
+.planning-trigger:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.planning-trigger.active {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.planning-trigger-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent, #a78bfa);
+}
+
+.planning-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(420px, 55vh);
+  overflow: auto;
+  z-index: 50;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
 .planning-panel {
   margin: 0 12px 8px;
   border: 1px solid rgba(127, 127, 127, 0.16);
   border-radius: 12px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.03);
+}
+
+.planning-panel-popover {
+  margin: 0;
+  border: 1px solid rgba(127, 127, 127, 0.22);
+  background: rgba(28, 28, 30, 0.98);
+  backdrop-filter: blur(20px);
 }
 
 .planning-section + .planning-section {
@@ -6749,11 +6810,21 @@ body {
    ======================================== */
 .view-mode-toggle {
   display: flex;
-  gap: 2px;
+  align-items: center;
+  gap: 6px;
   padding: 4px 12px;
   background: rgba(0, 0, 0, 0.15);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
+  position: relative;
+  z-index: 20;
+}
+
+.view-mode-tabs {
+  display: flex;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
 }
 
 .view-mode-btn {

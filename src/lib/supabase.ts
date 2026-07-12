@@ -377,6 +377,18 @@ export interface Changelog {
 
 // ============ Weekly Goals API ============
 
+/** Monday of the calendar week containing `date` (Sun–Sat; Sunday is still the last day of that week). */
+export function getWeekStart(date: Date = new Date()): string {
+  const d = new Date(date);
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/** Monday to target when saving goals. On Sunday, points at next Monday (upcoming planning week). */
 export function getMonday(date: Date = new Date()): string {
   const d = new Date(date);
   const day = d.getDay();
@@ -408,13 +420,39 @@ export async function getWeeklyGoals(userId: string, weekStart: string): Promise
   return data || [];
 }
 
-export async function getLastWeekGoals(userId: string): Promise<WeeklyGoal[]> {
-  const now = new Date();
-  const lastMonday = new Date(now);
-  lastMonday.setDate(lastMonday.getDate() - 7);
-  const weekStart = getMonday(lastMonday);
+/** Goals to show in the UI. On Sunday, flips to next week once that plan exists. */
+export async function fetchDisplayWeeklyGoals(userId: string): Promise<{
+  goals: WeeklyGoal[];
+  weekStart: string;
+  showsPlannedWeekAhead: boolean;
+}> {
+  const calendarWeek = getWeekStart();
+  const planningWeek = getMonday();
 
-  return getWeeklyGoals(userId, weekStart);
+  if (calendarWeek === planningWeek) {
+    const goals = await getWeeklyGoals(userId, calendarWeek);
+    return { goals, weekStart: calendarWeek, showsPlannedWeekAhead: false };
+  }
+
+  const [currentWeekGoals, plannedWeekGoals] = await Promise.all([
+    getWeeklyGoals(userId, calendarWeek),
+    getWeeklyGoals(userId, planningWeek),
+  ]);
+
+  if (plannedWeekGoals.length > 0) {
+    return { goals: plannedWeekGoals, weekStart: planningWeek, showsPlannedWeekAhead: true };
+  }
+
+  return { goals: currentWeekGoals, weekStart: calendarWeek, showsPlannedWeekAhead: false };
+}
+
+export async function getLastWeekGoals(userId: string): Promise<WeeklyGoal[]> {
+  const prev = new Date(`${getWeekStart()}T12:00:00`);
+  prev.setDate(prev.getDate() - 7);
+  const yyyy = prev.getFullYear();
+  const mm = String(prev.getMonth() + 1).padStart(2, '0');
+  const dd = String(prev.getDate()).padStart(2, '0');
+  return getWeeklyGoals(userId, `${yyyy}-${mm}-${dd}`);
 }
 
 export async function upsertWeeklyGoals(

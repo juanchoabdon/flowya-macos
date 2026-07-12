@@ -7,6 +7,8 @@ interface PlanningPanelProps {
   spaces: Space[];
   todos: Todo[];
   onOpenTask: (todoId: string) => void;
+  variant?: 'inline' | 'popover';
+  showsPlannedWeekAhead?: boolean;
 }
 
 const BUCKET_LABELS: Record<DailyPlanBucket, string> = {
@@ -54,6 +56,8 @@ export function PlanningPanel({
   spaces,
   todos,
   onOpenTask,
+  variant = 'inline',
+  showsPlannedWeekAhead = false,
 }: PlanningPanelProps) {
   const [weekExpanded, setWeekExpanded] = useState(true);
   const [todayExpanded, setTodayExpanded] = useState(true);
@@ -66,7 +70,7 @@ export function PlanningPanel({
   const weekTotal = weeklyGoals.length;
 
   return (
-    <div className="planning-panel">
+    <div className={`planning-panel ${variant === 'popover' ? 'planning-panel-popover' : ''}`}>
       {/* Today */}
       <section className="planning-section">
         <button
@@ -156,7 +160,9 @@ export function PlanningPanel({
         >
           <div className="planning-section-left">
             <TargetIcon />
-            <span className="planning-section-title">This week</span>
+            <span className="planning-section-title">
+              {showsPlannedWeekAhead ? 'Next week' : 'This week'}
+            </span>
             {weekTotal > 0 && (
               <span className="planning-progress">{weekCompleted}/{weekTotal}</span>
             )}
