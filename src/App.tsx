@@ -130,8 +130,8 @@ export default function App() {
     deleteRecurringTask: deleteRecurring,
   } = useRecurringTasks(user?.id, refetchTodos);
 
-  const { goals: weeklyGoals, showsPlannedWeekAhead, refetch: refetchWeeklyGoals } = useWeeklyGoals(user?.id);
-  const { view: dailyPlanView } = useDailyPlan(user?.id);
+  const { goals: weeklyGoals, showsPlannedWeekAhead, refetch: refetchWeeklyGoals, syncCompletion } = useWeeklyGoals(user?.id);
+  const { view: dailyPlanView, refetch: refetchDailyPlan } = useDailyPlan(user?.id);
 
   // Agent state
   const agent = useAgent();
@@ -406,9 +406,11 @@ export default function App() {
     if (realtimeRefetchTimer.current) clearTimeout(realtimeRefetchTimer.current);
     realtimeRefetchTimer.current = setTimeout(() => {
       void refetchTodos();
+      void refetchWeeklyGoals();
+      void refetchDailyPlan();
       realtimeRefetchTimer.current = null;
     }, 120);
-  }, [refetchTodos]);
+  }, [refetchTodos, refetchWeeklyGoals, refetchDailyPlan]);
 
   // Track recent local changes to avoid refetch blink from realtime echo
   const recentLocalChanges = useRef<Map<string, number>>(new Map());
@@ -467,6 +469,7 @@ export default function App() {
       console.log(`[Sync] ${reason}`);
       void refetchTodos();
       void refetchWeeklyGoals();
+      void refetchDailyPlan();
       if (reconnect) reconnectRealtime();
     };
 
@@ -493,7 +496,13 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       focusUnsub?.();
     };
-  }, [user?.id, refetchTodos, refetchWeeklyGoals, reconnectRealtime]);
+  }, [user?.id, refetchTodos, refetchWeeklyGoals, refetchDailyPlan, reconnectRealtime]);
+
+  // Keep weekly goal completion in sync when todos change locally (no refresh needed)
+  useEffect(() => {
+    if (!user?.id || todos.length === 0) return;
+    syncCompletion(todos);
+  }, [user?.id, todos, syncCompletion]);
 
   // Secret: Cmd+Shift+D to show today's progress
   const [showTodaySummary, setShowTodaySummary] = useState(false);

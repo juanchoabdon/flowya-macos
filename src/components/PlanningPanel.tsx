@@ -110,7 +110,7 @@ export function PlanningPanel({
                   <div key={bucket} className="planning-bucket">
                     <div className="planning-bucket-label">{BUCKET_LABELS[bucket]}</div>
                     {items.map(item => {
-                      const task = item.task ?? todoMap[item.task_id];
+                      const task = todoMap[item.task_id] ?? item.task;
                       const space = task ? spaceMap[task.space_id] : undefined;
                       const isDone = task?.status === 'done';
 

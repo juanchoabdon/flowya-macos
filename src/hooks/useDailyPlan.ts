@@ -31,17 +31,28 @@ export function useDailyPlan(userId: string | undefined): UseDailyPlanReturn {
     refetch();
   }, [refetch]);
 
-  // Realtime: refresh when plan or items change (e.g. from MCP)
+  // Realtime: refresh when plan rows change (create/update via MCP or another client)
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`daily-plans-user-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'daily_plans', filter: `user_id=eq.${userId}` },
+        () => { void refetch(); },
+      )
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
+  }, [userId, refetch]);
+
+  // Realtime: refresh when items for the active plan change
   useEffect(() => {
     if (!userId || !view.plan?.id) return;
 
     const channel = supabase
-      .channel(`daily-plan-${view.plan.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'daily_plans', filter: `id=eq.${view.plan.id}` },
-        () => { void refetch(); },
-      )
+      .channel(`daily-plan-items-${view.plan.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'daily_plan_items', filter: `daily_plan_id=eq.${view.plan.id}` },

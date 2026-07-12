@@ -64,6 +64,22 @@ export function useWeeklyGoals(userId: string | undefined): UseWeeklyGoalsReturn
     fetchGoals();
   }, [fetchGoals]);
 
+  // Realtime: refresh when goals change (MCP set_weekly_goals, completion sync, etc.)
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`weekly-goals-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'weekly_goals', filter: `user_id=eq.${userId}` },
+        () => { void fetchGoals(); },
+      )
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
+  }, [userId, fetchGoals]);
+
   const syncCompletion = useCallback(async (todos: Todo[]) => {
     const todoMap = new Map(todos.map(t => [t.id, t]));
 
