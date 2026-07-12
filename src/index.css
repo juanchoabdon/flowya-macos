@@ -5784,6 +5784,15 @@ body {
   opacity: 0.95;
 }
 
+.planning-linked-task.done {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+.planning-linked-task.done:hover {
+  opacity: 0.6;
+}
+
 .planning-goal-row.done {
   opacity: 0.7;
 }

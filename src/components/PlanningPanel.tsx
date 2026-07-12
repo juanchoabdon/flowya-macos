@@ -195,7 +195,7 @@ export function PlanningPanel({
                         <button
                           key={todo.id}
                           type="button"
-                          className="planning-linked-task"
+                          className={`planning-linked-task ${todo.status === 'done' ? 'done' : ''}`}
                           onClick={() => onOpenTask(todo.id)}
                         >
                           → {todo.text}
