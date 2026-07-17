@@ -135,7 +135,7 @@ export async function getAllTodos(): Promise<Todo[]> {
 async function fetchBacklogForSpace(spaceId: string): Promise<BacklogSortTodo[]> {
   const { data, error } = await supabase
     .from('todos')
-    .select('id, space_id, status, position, manual_order, due_date, created_at')
+    .select('id, space_id, status, position, manual_order, due_date, created_at, priority')
     .eq('space_id', spaceId)
     .eq('status', 'backlog')
     .eq('archived', false);
@@ -163,6 +163,53 @@ export async function resortBacklogAutoForSpace(spaceId: string): Promise<void> 
       supabase.from('todos').update({ position }).eq('id', id),
     ),
   );
+}
+
+const BACKLOG_SORT_RESET_KEY = 'flowya:backlog-auto-sort-v3';
+
+/** One-time per device: drop legacy drag order and resort all backlogs by due_date. */
+export function shouldResetBacklogAutoSort(): boolean {
+  try {
+    return localStorage.getItem(BACKLOG_SORT_RESET_KEY) !== 'done';
+  } catch {
+    return true;
+  }
+}
+
+export function markBacklogAutoSortResetDone(): void {
+  try {
+    localStorage.setItem(BACKLOG_SORT_RESET_KEY, 'done');
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Clear manual pins and recompute auto positions for every space with backlog tasks. */
+export async function resetAllBacklogsToAutoSort(): Promise<void> {
+  const { error: clearErr } = await supabase
+    .from('todos')
+    .update({ manual_order: false })
+    .eq('status', 'backlog')
+    .eq('archived', false);
+
+  if (clearErr) {
+    console.error('Error clearing backlog manual_order:', clearErr);
+    throw clearErr;
+  }
+
+  const { data, error: spaceErr } = await supabase
+    .from('todos')
+    .select('space_id')
+    .eq('status', 'backlog')
+    .eq('archived', false);
+
+  if (spaceErr) {
+    console.error('Error fetching backlog spaces for resort:', spaceErr);
+    throw spaceErr;
+  }
+
+  const spaceIds = [...new Set((data ?? []).map(row => row.space_id as string))];
+  await Promise.all(spaceIds.map(resortBacklogAutoForSpace));
 }
 
 /** Persist a manual backlog order from drag or MCP reorder. */

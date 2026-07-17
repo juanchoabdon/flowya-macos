@@ -28,10 +28,10 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
   const isAllView = spaceId === ALL_SPACES_ID;
 
   const isInitialLoad = useRef(true);
-  const hasResortedBacklog = useRef(false);
+  const hasPreparedBacklogSort = useRef(false);
 
   useEffect(() => {
-    hasResortedBacklog.current = false;
+    hasPreparedBacklogSort.current = false;
   }, [spaceId]);
 
   const fetchTodos = useCallback(async () => {
@@ -45,9 +45,14 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
       if (isInitialLoad.current) {
         setLoading(true);
       }
-      if (!isAllView && !hasResortedBacklog.current) {
-        await api.resortBacklogAutoForSpace(spaceId);
-        hasResortedBacklog.current = true;
+      if (!hasPreparedBacklogSort.current) {
+        if (api.shouldResetBacklogAutoSort()) {
+          await api.resetAllBacklogsToAutoSort();
+          api.markBacklogAutoSortResetDone();
+        } else if (!isAllView) {
+          await api.resortBacklogAutoForSpace(spaceId);
+        }
+        hasPreparedBacklogSort.current = true;
       }
       const data = isAllView 
         ? await api.getAllTodos()

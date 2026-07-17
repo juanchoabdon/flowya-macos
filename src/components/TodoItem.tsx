@@ -91,7 +91,7 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
 
   const currentStatus = STATUS_CONFIG[todo.status];
 
-  const formatETA = (): string | null => {
+  const formatETA = (): { label: string; overdue: boolean } | null => {
     if (!todo.due_date || todo.status === 'done') return null;
     const now = new Date();
     const due = parseDueDate(todo.due_date);
@@ -100,15 +100,22 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
     const diffHours = Math.round(diffMs / 3600000);
     const diffDays = Math.round(diffMs / 86400000);
 
-    if (diffMs < 0) return null;
-    if (diffMins < 60) return `${diffMins}m`;
-    if (diffHours < 24) return `${diffHours}h`;
-    if (diffDays === 1) return 'Tomorrow';
-    if (diffDays <= 6) return due.toLocaleDateString('en-US', { weekday: 'short' });
-    return due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (diffMs < 0) {
+      const overdueDays = Math.ceil(Math.abs(diffMs) / 86400000);
+      if (overdueDays === 1) return { label: 'Yesterday', overdue: true };
+      if (overdueDays <= 6) {
+        return { label: due.toLocaleDateString('en-US', { weekday: 'short' }), overdue: true };
+      }
+      return { label: due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), overdue: true };
+    }
+    if (diffMins < 60) return { label: `${diffMins}m`, overdue: false };
+    if (diffHours < 24) return { label: `${diffHours}h`, overdue: false };
+    if (diffDays === 1) return { label: 'Tomorrow', overdue: false };
+    if (diffDays <= 6) return { label: due.toLocaleDateString('en-US', { weekday: 'short' }), overdue: false };
+    return { label: due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), overdue: false };
   };
 
-  const etaLabel = formatETA();
+  const eta = formatETA();
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('taskId', todo.id);
@@ -200,10 +207,10 @@ export function TodoItem({ todo, onStatusChange, onUpdate, onDelete, onArchive, 
               {todo.description && todo.description.replace(/<[^>]*>/g, '').trim() && (
                 <NoteIcon />
               )}
-            {etaLabel && (
-              <span className="todo-eta-label">
+            {eta && (
+              <span className={`todo-eta-label${eta.overdue ? ' overdue' : ''}`}>
                 <ClockSmallIcon />
-                {etaLabel}
+                {eta.label}
               </span>
             )}
             {space && (

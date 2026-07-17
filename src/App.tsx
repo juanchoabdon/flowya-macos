@@ -760,6 +760,10 @@ export default function App() {
     const spaceName = todo ? spaces.find(s => s.id === todo.space_id)?.name : undefined;
 
     if (todo && status !== 'done') {
+      // Backlog order is due-date driven; resort runs in updateTodo.
+      if (status === 'backlog') {
+        updateTodo(todoId, { status });
+      } else {
       const sameCategoryTodos = todos.filter(t =>
         t.status === status && t.id !== todoId
       );
@@ -794,6 +798,7 @@ export default function App() {
         } else {
           updateTodo(todoId, { status });
         }
+      }
       }
     } else {
       updateTodo(todoId, { status });

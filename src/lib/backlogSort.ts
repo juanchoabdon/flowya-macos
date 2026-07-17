@@ -1,26 +1,37 @@
 import type { Todo } from '../types';
 
-export type BacklogSortTodo = Pick<Todo, 'id' | 'space_id' | 'status' | 'position' | 'manual_order' | 'due_date' | 'created_at'>;
+export type BacklogSortTodo = Pick<Todo, 'id' | 'space_id' | 'status' | 'position' | 'manual_order' | 'due_date' | 'created_at' | 'priority'>;
+
+const PRIORITY_RANK: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
+
+function priorityRank(priority?: string | null): number {
+  return PRIORITY_RANK[priority ?? 'P1'] ?? 1;
+}
 
 function parseDueMs(due: string | null): number | null {
-  if (!due) return null;
+  if (!due || !due.trim()) return null;
   let s = due.replace(' ', 'T');
   if (!s.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(s) && !/[+-]\d{2}$/.test(s)) s += 'Z';
   const ms = new Date(s).getTime();
   return Number.isNaN(ms) ? null : ms;
 }
 
+function comparePriorityThenCreated(a: BacklogSortTodo, b: BacklogSortTodo): number {
+  const pa = priorityRank(a.priority);
+  const pb = priorityRank(b.priority);
+  if (pa !== pb) return pa - pb;
+  return a.created_at.localeCompare(b.created_at) || a.position - b.position;
+}
+
 /** Chronological compare for auto-sorted backlog tasks (null due_date last). */
 export function compareDueDate(a: BacklogSortTodo, b: BacklogSortTodo): number {
   const aMs = parseDueMs(a.due_date);
   const bMs = parseDueMs(b.due_date);
-  if (aMs === null && bMs === null) {
-    return a.created_at.localeCompare(b.created_at) || a.position - b.position;
-  }
+  if (aMs === null && bMs === null) return comparePriorityThenCreated(a, b);
   if (aMs === null) return 1;
   if (bMs === null) return -1;
   if (aMs !== bMs) return aMs - bMs;
-  return a.position - b.position;
+  return comparePriorityThenCreated(a, b);
 }
 
 /** UI sort for backlog: manual tasks by position; auto tasks by due_date. */
