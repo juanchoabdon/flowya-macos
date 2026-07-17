@@ -36,6 +36,7 @@ import { PlanningPopover } from './components/PlanningPopover';
 import { useWeeklyGoals } from './hooks/useWeeklyGoals';
 import { useDailyPlan } from './hooks/useDailyPlan';
 import * as analytics from './lib/analytics';
+import { compareBacklogDisplay } from './lib/backlogSort';
 
 export default function App() {
   const { user, loading: authLoading, signInWithEmail, signUpWithEmail, signOut } = useAuth();
@@ -271,7 +272,7 @@ export default function App() {
     const byPosition = (a: Todo, b: Todo) => a.position - b.position;
     const active = todos.filter(t => !t.archived && t.status !== 'done');
     const inProgress = active.filter(t => t.status === 'in_progress').sort(byPosition);
-    const backlog = active.filter(t => t.status === 'backlog').sort(byPosition);
+    const backlog = active.filter(t => t.status === 'backlog').sort(compareBacklogDisplay);
     return inProgress[0] || backlog[0] || null;
   }, [todos]);
 
@@ -906,11 +907,17 @@ export default function App() {
         const bTime = b.completed_at ? new Date(b.completed_at).getTime() : 0;
         return bTime - aTime;
       }
+      if (filter === 'backlog') {
+        return compareBacklogDisplay(a, b);
+      }
       // Group by status (in_progress → backlog → done), then by position within group.
       const statusOrder: Record<string, number> = { in_progress: 0, backlog: 1, done: 2 };
       const sa = statusOrder[a.status] ?? 1;
       const sb = statusOrder[b.status] ?? 1;
       if (sa !== sb) return sa - sb;
+      if (a.status === 'backlog' && b.status === 'backlog') {
+        return compareBacklogDisplay(a, b);
+      }
       return a.position - b.position;
     });
 

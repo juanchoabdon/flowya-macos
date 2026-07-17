@@ -41,6 +41,7 @@ export interface Todo {
   priority: Priority;
   due_date: string | null;  // ISO date string for deadline
   position: number;
+  manual_order: boolean;  // true = user/MCP fixed order; false = auto-sort by due_date in backlog
   created_at: string;
   started_at: string | null;  // When moved to in_progress
   completed_at: string | null;

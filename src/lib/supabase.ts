@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Space, Todo, Settings, WeeklyGoal, RecurringTask, Note, DailyPlan, DailyPlanView } from '../types';
 import { SPACE_COLORS } from '../types';
+import { computeAutoBacklogPositions, type BacklogSortTodo } from './backlogSort';
 
 // Get Supabase credentials from environment variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
@@ -131,26 +132,57 @@ export async function getAllTodos(): Promise<Todo[]> {
   return data || [];
 }
 
-export async function createTodo(spaceId: string, text: string): Promise<Todo> {
-  // Get current max position for backlog to place new todo at bottom (oldest first)
-  const { data: existing } = await supabase
+async function fetchBacklogForSpace(spaceId: string): Promise<BacklogSortTodo[]> {
+  const { data, error } = await supabase
     .from('todos')
-    .select('position')
+    .select('id, space_id, status, position, manual_order, due_date, created_at')
     .eq('space_id', spaceId)
     .eq('status', 'backlog')
-    .order('position', { ascending: false })
-    .limit(1);
-  
-  const maxPosition = existing?.[0]?.position ?? -1;
-  const newPosition = maxPosition + 1;
+    .eq('archived', false);
 
+  if (error) {
+    console.error('Error fetching backlog for resort:', error);
+    return [];
+  }
+  return (data ?? []) as BacklogSortTodo[];
+}
+
+/** Recompute positions for auto-sorted backlog tasks (manual_order=false). */
+export async function resortBacklogAutoForSpace(spaceId: string): Promise<void> {
+  const backlog = await fetchBacklogForSpace(spaceId);
+  if (backlog.length === 0) return;
+
+  const updates = computeAutoBacklogPositions(backlog);
+  const writes = [...updates.entries()].filter(([id, position]) => {
+    const row = backlog.find(t => t.id === id);
+    return row && !row.manual_order && row.position !== position;
+  });
+
+  await Promise.all(
+    writes.map(([id, position]) =>
+      supabase.from('todos').update({ position }).eq('id', id),
+    ),
+  );
+}
+
+/** Persist a manual backlog order from drag or MCP reorder. */
+export async function reorderBacklogManual(todoIds: string[]): Promise<void> {
+  await Promise.all(
+    todoIds.map((id, index) =>
+      supabase.from('todos').update({ position: index, manual_order: true }).eq('id', id),
+    ),
+  );
+}
+
+export async function createTodo(spaceId: string, text: string): Promise<Todo> {
   const { data, error } = await supabase
     .from('todos')
     .insert({
       space_id: spaceId,
       text,
       status: 'backlog',
-      position: newPosition,
+      position: 0,
+      manual_order: false,
     })
     .select()
     .single();
@@ -159,13 +191,36 @@ export async function createTodo(spaceId: string, text: string): Promise<Todo> {
     console.error('Error creating todo:', error);
     throw error;
   }
-  return data;
+
+  await resortBacklogAutoForSpace(spaceId);
+
+  const { data: fresh, error: freshErr } = await supabase
+    .from('todos')
+    .select('*')
+    .eq('id', data.id)
+    .single();
+  if (freshErr) {
+    console.error('Error refetching todo after backlog resort:', freshErr);
+    return data;
+  }
+  return fresh;
 }
 
 export async function updateTodo(
   id: string,
-  updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position' | 'priority' | 'due_date' | 'space_id'>>
+  updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position' | 'priority' | 'due_date' | 'space_id' | 'manual_order'>>
 ): Promise<Todo> {
+  const { data: existing, error: fetchErr } = await supabase
+    .from('todos')
+    .select('id, space_id, status, due_date, manual_order')
+    .eq('id', id)
+    .single();
+
+  if (fetchErr || !existing) {
+    console.error('Error fetching todo before update:', fetchErr);
+    throw fetchErr ?? new Error('Todo not found');
+  }
+
   const updateData: Record<string, unknown> = { ...updates };
   
   // Set timestamps based on status changes
@@ -177,9 +232,10 @@ export async function updateTodo(
     } else if (updates.status === 'done') {
       updateData.completed_at = new Date().toISOString();
     } else {
-      // backlog - clear both timestamps
+      // backlog - clear both timestamps and re-enter auto sort
       updateData.started_at = null;
       updateData.completed_at = null;
+      updateData.manual_order = false;
     }
   }
   
@@ -194,7 +250,27 @@ export async function updateTodo(
     console.error('Error updating todo:', error);
     throw error;
   }
-  return data;
+
+  const targetStatus = (updates.status ?? existing.status) as Todo['status'];
+  const targetSpaceId = (updates.space_id ?? existing.space_id) as string;
+  const dueChanged = updates.due_date !== undefined && updates.due_date !== existing.due_date;
+  const movedToBacklog = updates.status === 'backlog' && existing.status !== 'backlog';
+  const manualOrder = updates.manual_order ?? (updates.status === 'backlog' ? false : existing.manual_order);
+
+  if (targetStatus === 'backlog' && !manualOrder && (dueChanged || movedToBacklog)) {
+    await resortBacklogAutoForSpace(targetSpaceId);
+  }
+
+  const { data: fresh, error: freshErr } = await supabase
+    .from('todos')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (freshErr) {
+    console.error('Error refetching todo after update:', freshErr);
+    return data;
+  }
+  return fresh;
 }
 
 export async function reorderTodos(todoIds: string[]): Promise<void> {
@@ -718,6 +794,7 @@ export async function createTodoAtTop(spaceId: string, text: string): Promise<To
       status: 'backlog',
       priority: 'P0',
       position: 0,
+      manual_order: true,
     })
     .select()
     .single();

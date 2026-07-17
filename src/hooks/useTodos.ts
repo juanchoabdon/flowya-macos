@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Todo } from '../types';
 import * as api from '../lib/supabase';
+import { compareBacklogDisplay } from '../lib/backlogSort';
 
 // Special constant for "all todos" view
 export const ALL_SPACES_ID = '__all__';
@@ -10,7 +11,7 @@ interface UseTodosReturn {
   loading: boolean;
   error: Error | null;
   createTodo: (text: string, overrideSpaceId?: string) => Promise<Todo | null>;
-  updateTodo: (id: string, updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position' | 'priority' | 'due_date' | 'space_id'>>) => Promise<Todo | null>;
+  updateTodo: (id: string, updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position' | 'priority' | 'due_date' | 'space_id' | 'manual_order'>>) => Promise<Todo | null>;
   unarchiveTodo: (id: string) => Promise<boolean>;
   archiveTodo: (id: string) => Promise<boolean>;
   archiveAllDone: () => Promise<boolean>;
@@ -27,6 +28,11 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
   const isAllView = spaceId === ALL_SPACES_ID;
 
   const isInitialLoad = useRef(true);
+  const hasResortedBacklog = useRef(false);
+
+  useEffect(() => {
+    hasResortedBacklog.current = false;
+  }, [spaceId]);
 
   const fetchTodos = useCallback(async () => {
     if (!spaceId || !userId) {
@@ -38,6 +44,10 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
     try {
       if (isInitialLoad.current) {
         setLoading(true);
+      }
+      if (!isAllView && !hasResortedBacklog.current) {
+        await api.resortBacklogAutoForSpace(spaceId);
+        hasResortedBacklog.current = true;
       }
       const data = isAllView 
         ? await api.getAllTodos()
@@ -63,18 +73,17 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
 
     try {
       const newTodo = await api.createTodo(targetSpaceId, text);
-      // Optimistic update - add to top
-      setTodos(prev => [newTodo, ...prev]);
+      await fetchTodos();
       return newTodo;
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to create todo'));
       return null;
     }
-  }, [spaceId, isAllView]);
+  }, [spaceId, isAllView, fetchTodos]);
 
   const updateTodo = useCallback(async (
     id: string,
-    updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position' | 'priority' | 'due_date' | 'space_id'>>
+    updates: Partial<Pick<Todo, 'text' | 'description' | 'status' | 'position' | 'priority' | 'due_date' | 'space_id' | 'manual_order'>>
   ): Promise<Todo | null> => {
     try {
       const currentTodo = todos.find(t => t.id === id);
@@ -82,11 +91,15 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
       
       // When moving to a new status, set position to end so oldest are at top
       if (updates.status && updates.status !== currentTodo?.status) {
-        const statusTodos = todos.filter(t => t.status === updates.status);
-        const maxPosition = statusTodos.length > 0 
-          ? Math.max(...statusTodos.map(t => t.position)) + 1 
-          : 0;
-        finalUpdates.position = maxPosition;
+        if (updates.status === 'backlog') {
+          finalUpdates.manual_order = false;
+        } else {
+          const statusTodos = todos.filter(t => t.status === updates.status);
+          const maxPosition = statusTodos.length > 0 
+            ? Math.max(...statusTodos.map(t => t.position)) + 1 
+            : 0;
+          finalUpdates.position = maxPosition;
+        }
       }
       
       // Optimistic update
@@ -114,6 +127,12 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
       }));
 
       const updated = await api.updateTodo(id, finalUpdates);
+      if (
+        updated &&
+        (updates.due_date !== undefined || updates.status === 'backlog')
+      ) {
+        await fetchTodos();
+      }
       return updated;
     } catch (err) {
       // Revert on error
@@ -137,7 +156,9 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
     // Get only todos with the same status, sorted by position
     const statusTodos = todos
       .filter(t => t.status === status)
-      .sort((a, b) => a.position - b.position);
+      .sort((a, b) => (
+        status === 'backlog' ? compareBacklogDisplay(a, b) : a.position - b.position
+      ));
     
     const draggedIndex = statusTodos.findIndex(t => t.id === draggedId);
     
@@ -174,6 +195,7 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
     const updatedStatusTodos = newStatusTodos.map((todo, index) => ({
       ...todo,
       position: index,
+      ...(status === 'backlog' ? { manual_order: true } : {}),
     }));
     
     // Merge back with other todos
@@ -186,7 +208,11 @@ export function useTodos(spaceId: string | null, userId?: string): UseTodosRetur
     // Persist to database - only update the reordered status todos
     try {
       const todoIds = updatedStatusTodos.map(t => t.id);
-      await api.reorderTodos(todoIds);
+      if (status === 'backlog') {
+        await api.reorderBacklogManual(todoIds);
+      } else {
+        await api.reorderTodos(todoIds);
+      }
     } catch (err) {
       // Revert on error
       fetchTodos();
